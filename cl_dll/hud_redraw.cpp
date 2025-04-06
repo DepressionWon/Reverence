@@ -51,16 +51,33 @@ void CHud::Think()
 		pList = pList->pNext;
 	}
 
+	// fov based on aspect ratio
+	if (r_autofov->value != 0)
+	{
+		if (((float)ScreenWidth / (float)ScreenHeight) < 1.7f)
+		{
+			if (default_fov->value != 90)
+				gEngfuncs.Cvar_SetValue("default_fov", 90);
+		}
+		else
+		{
+			if (default_fov->value != 105)
+				gEngfuncs.Cvar_SetValue("default_fov", 105);
+		}
+	}
+ 
 	newfov = HUD_GetFOV();
 	if (newfov == 0)
 	{
-		m_iFOV = default_fov->value;
+		m_iTargetFOV = default_fov->value;
 	}
 	else
 	{
-		m_iFOV = newfov;
+		m_iTargetFOV = newfov;
 	}
 
+	m_iFOV = lerp(m_iFOV, m_iTargetFOV, gHUD.m_flTimeDelta * V_max((m_iTargetFOV * 0.35f), 5.5f));
+ 
 	// the clients fov is actually set in the client data update section of the hud
 
 	// Set a new sensitivity
@@ -228,7 +245,7 @@ int CHud::DrawHudNumberString(int xpos, int ypos, int iMinX, int iNumber, int r,
 // draws a string from right to left (right-aligned)
 int CHud::DrawHudStringReverse(int xpos, int ypos, int iMinX, const char* szString, int r, int g, int b)
 {
-	return xpos - gEngfuncs.pfnDrawStringReverse(xpos, ypos, szString, r, g, b);
+	return xpos - gEngfuncs.pfnDrawStringReverse(xpos + m_flHudLagOfs[0], ypos + m_flHudLagOfs[1], szString, r, g, b);
 }
 
 int CHud::DrawHudNumber(int x, int y, int iFlags, int iNumber, int r, int g, int b)

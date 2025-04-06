@@ -503,7 +503,13 @@ public:
 	Vector m_vecAngles;
 	int m_iKeyBits;
 	int m_iHideHUDDisplay;
-	int m_iFOV;
+	// Smooth zooming
+	float m_iFOV;
+	int m_iTargetFOV;
+ 
+	struct cvar_s* default_fov;
+	struct cvar_s* r_autofov;
+
 	bool m_Teamplay;
 	int m_iRes;
 	cvar_t* m_pCvarStealMouse;
@@ -541,7 +547,6 @@ private:
 	Rect* m_rgrcRects;							  /*[HUD_SPRITE_COUNT]*/
 	char* m_rgszSpriteNames;					  /*[HUD_SPRITE_COUNT][MAX_SPRITE_NAME_LENGTH]*/
 
-	struct cvar_s* default_fov;
 
 public:
 	HSPRITE GetSprite(int index)
@@ -607,6 +612,11 @@ public:
 	void AddHudElem(CHudBase* p);
 
 	float GetSensitivity();
+
+	float m_flHudLagOfs[2];
+
+	Vector jumpangles;
+	Vector jumpofs;
 };
 
 extern CHud gHUD;

@@ -86,6 +86,7 @@ cvar_t* cl_rollangle = nullptr;
 cvar_t* cl_rollspeed = nullptr;
 cvar_t* cl_bobtilt = nullptr;
 cvar_t* r_decals = nullptr;
+cvar_t* cl_viewmodel_lag_enabled;
 
 void ShutdownInput();
 
@@ -325,15 +326,15 @@ void CHud::Init()
 
 	m_iLogo = 0;
 	m_iFOV = 0;
+	m_iTargetFOV = 0;
 
 	CVAR_CREATE("zoom_sensitivity_ratio", "1.2", FCVAR_ARCHIVE);
 	CVAR_CREATE("cl_autowepswitch", "1", FCVAR_ARCHIVE | FCVAR_USERINFO);
 	default_fov = CVAR_CREATE("default_fov", "90", FCVAR_ARCHIVE);
+	r_autofov = CVAR_CREATE("r_autofov", "1", FCVAR_ARCHIVE);
 	m_pCvarStealMouse = CVAR_CREATE("hud_capturemouse", "1", FCVAR_ARCHIVE);
 	m_pCvarDraw = CVAR_CREATE("hud_draw", "1", FCVAR_ARCHIVE);
 	cl_lw = gEngfuncs.pfnGetCvarPointer("cl_lw");
-	cl_rollangle = CVAR_CREATE("cl_rollangle", "2.0", FCVAR_ARCHIVE);
-	cl_rollspeed = CVAR_CREATE("cl_rollspeed", "200", FCVAR_ARCHIVE);
 	cl_bobtilt = CVAR_CREATE("cl_bobtilt", "0", FCVAR_ARCHIVE);
 	r_decals = gEngfuncs.pfnGetCvarPointer("r_decals");
 
@@ -648,11 +649,11 @@ bool CHud::MsgFunc_SetFOV(const char* pszName, int iSize, void* pbuf)
 
 	if (newfov == 0)
 	{
-		m_iFOV = def_fov;
+		m_iTargetFOV = def_fov;
 	}
 	else
 	{
-		m_iFOV = newfov;
+		m_iTargetFOV = newfov;
 	}
 
 	// the clients fov is actually set in the client data update section of the hud

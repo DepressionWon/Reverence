@@ -22,6 +22,7 @@ void Game_AddObjects();
 extern Vector v_origin;
 
 bool g_iAlive = true;
+int g_iFlashlight = 0;
 
 /*
 ========================
@@ -38,6 +39,21 @@ int DLLEXPORT HUD_AddEntity(int type, struct cl_entity_s* ent, const char* model
 	case ET_NORMAL:
 		break;
 	case ET_PLAYER:
+	{
+		if ((ent && ent == gEngfuncs.GetLocalPlayer()))
+		{
+
+			if ((ent->curstate.effects & EF_DIMLIGHT) != 0)
+			{
+				ent->curstate.effects &= ~EF_DIMLIGHT;
+				g_iFlashlight = 1;
+			}
+			else
+			{
+				g_iFlashlight = 0;
+			}
+		}
+	}
 	case ET_BEAM:
 	case ET_TEMPENTITY:
 	case ET_FRAGMENTED:

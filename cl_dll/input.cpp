@@ -462,14 +462,22 @@ void IN_UseDown()
 	gHUD.m_Spectator.HandleButtonsDown(IN_USE);
 }
 void IN_UseUp() { KeyUp(&in_use); }
+extern int jumpstate;
 void IN_JumpDown()
 {
+	if (jumpstate == 0)
+		jumpstate = 1;
+ 
 	KeyDown(&in_jump);
 	gHUD.m_Spectator.HandleButtonsDown(IN_JUMP);
 }
 void IN_JumpUp() { KeyUp(&in_jump); }
+extern int crouchstate;
 void IN_DuckDown()
 {
+	if (crouchstate == 0)
+		crouchstate = 1;
+ 
 	KeyDown(&in_duck);
 	gHUD.m_Spectator.HandleButtonsDown(IN_DUCK);
 }
