@@ -1,7 +1,7 @@
 Reverence SDK
 ======================
 
-New Codebase, especially for my "Modernized" and "Cascaded/Cascation!" mods.
+Do you know how much I hate the rain, Kurosaki?
 
 Features
 ======================
