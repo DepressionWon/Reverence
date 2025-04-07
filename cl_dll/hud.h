@@ -133,6 +133,7 @@ private:
 	WEAPON* m_pWeapon;
 	int m_HUD_bucket0;
 	int m_HUD_selection;
+	float m_flCrosshairColor;
 };
 
 //
@@ -617,6 +618,12 @@ public:
 
 	Vector jumpangles;
 	Vector jumpofs;
+
+	float m_flCrosshairSize;
+
+
+	cvar_t* hud_crosshair;
+	cvar_t* hud_crosshair_speed;
 };
 
 extern CHud gHUD;

@@ -29,6 +29,8 @@
 #include "ammohistory.h"
 #include "vgui_TeamFortressViewport.h"
 
+#define clamp(val, min, max) (((val) > (max)) ? (max) : (((val) < (min)) ? (min) : (val)))
+
 WEAPON* gpActiveSel; // NULL means off, 1 means just the menu bar, otherwise
 					 // this points to the active weapon menu item
 WEAPON* gpLastSel;	 // Last weapon menu selection
@@ -297,6 +299,8 @@ bool CHudAmmo::Init()
 	gWR.Init();
 	gHR.Init();
 
+	m_flCrosshairColor = 0;
+ 
 	return true;
 }
 
@@ -979,6 +983,62 @@ bool CHudAmmo::Draw(float flTime)
 			int iOffset = (m_pWeapon->rcAmmo2.bottom - m_pWeapon->rcAmmo2.top) / 8;
 			SPR_DrawAdditive(0, x, y - iOffset, &m_pWeapon->rcAmmo2);
 		}
+	}
+
+/*
+ =============
+ Dynamic Crosshair
+ =============
+ */
+
+	ref_params_t g_pparams{};
+
+	int iHeight;
+	int iWidth;
+	float cross_size = 10.0f; // crosshair size, adjust as you like
+	static float flLerpVel = (Vector(g_pparams.simvel).Length2D() / 50);
+
+	float scale = 3.0f;
+
+	flLerpVel = lerp(flLerpVel, (Vector(g_pparams.simvel).Length2D() / 50), gHUD.m_flTimeDelta * gHUD.hud_crosshair_speed->value);
+
+	cross_size += gHUD.m_flCrosshairSize + flLerpVel; // add a temporary one to the original size of the sight
+
+	gHUD.m_flCrosshairSize = lerp(gHUD.m_flCrosshairSize, 0, gHUD.m_flTimeDelta * gHUD.hud_crosshair_speed->value); // return the sight to its original size. hud_crosshair_speed choose whatever you like.
+	gHUD.m_flCrosshairSize = clamp(gHUD.m_flCrosshairSize, 0.0f, 128.0f);											// limit the variable
+
+	if (gHUD.hud_crosshair->value != 0) // draw if hud_crosshair is 1
+	{
+		extern float m_flHudLagOfs[];
+
+		// left bar
+		iHeight = 2;
+		iWidth = -4 * scale;
+		x = (ScreenWidth / 2) - cross_size + 2.01 + gHUD.m_flHudLagOfs[0];
+		y = (ScreenHeight / 2) + gHUD.m_flHudLagOfs[1];
+		(*gEngfuncs.pfnFillRGBA)(x, y, iWidth, iHeight, r, g, b, (1 - m_flCrosshairColor) * 255);
+
+		// right bar
+		iHeight = 2;
+		iWidth = 4 * scale;
+		x = (ScreenWidth / 2) + cross_size + gHUD.m_flHudLagOfs[0];
+		y = (ScreenHeight / 2) + gHUD.m_flHudLagOfs[1];
+		(*gEngfuncs.pfnFillRGBA)(x, y, iWidth, iHeight, r, g, b, (1 - m_flCrosshairColor) * 255);
+
+		// top bar
+		iHeight = -4 * scale;
+		iWidth = 2;
+		x = (ScreenWidth / 2) + gHUD.m_flHudLagOfs[0];
+		y = (ScreenHeight / 2) - cross_size + 1 + gHUD.m_flHudLagOfs[1];
+		(*gEngfuncs.pfnFillRGBA)(x, y, iWidth, iHeight, r, g, b, (1 - m_flCrosshairColor) * 255);
+
+
+		// bottom bar
+		iHeight = 4 * scale;
+		iWidth = 2;
+		x = (ScreenWidth / 2) + gHUD.m_flHudLagOfs[0];
+		y = (ScreenHeight / 2) + cross_size + gHUD.m_flHudLagOfs[1];
+		(*gEngfuncs.pfnFillRGBA)(x, y, iWidth, iHeight, r, g, b, (1 - m_flCrosshairColor) * 255);
 	}
 	return true;
 }

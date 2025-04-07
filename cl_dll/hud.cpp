@@ -336,6 +336,9 @@ void CHud::Init()
 	cl_lw = gEngfuncs.pfnGetCvarPointer("cl_lw");
 	cl_bobtilt = CVAR_CREATE("cl_bobtilt", "0", FCVAR_ARCHIVE);
 	r_decals = gEngfuncs.pfnGetCvarPointer("r_decals");
+	hud_crosshair = CVAR_CREATE("hud_crosshair", "1", FCVAR_ARCHIVE);			   // main cvar
+	hud_crosshair_speed = CVAR_CREATE("hud_crosshair_speed", "23", FCVAR_ARCHIVE); // speed of returning the sight to its original size
+ 
 
 	m_pSpriteList = NULL;
 

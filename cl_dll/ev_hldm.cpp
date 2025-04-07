@@ -479,6 +479,8 @@ void EV_FireGlock1(event_args_t* args)
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(empty ? GLOCK_SHOOT_EMPTY : GLOCK_SHOOT, 0);
 
 		V_PunchAxis(0, -2.0);
+
+		gHUD.m_flCrosshairSize += 10;
 	}
 
 	EV_GetDefaultShellInfo(args, origin, velocity, ShellVelocity, ShellOrigin, forward, right, up, 20, -12, 4);
@@ -525,6 +527,8 @@ void EV_FireGlock2(event_args_t* args)
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(empty ? GLOCK_SHOOT_EMPTY : GLOCK_SHOOT, 0);
 
 		V_PunchAxis(0, -2.0);
+
+		gHUD.m_flCrosshairSize += 10;
 	}
 
 	EV_GetDefaultShellInfo(args, origin, velocity, ShellVelocity, ShellOrigin, forward, right, up, 20, -12, 4);
@@ -575,6 +579,8 @@ void EV_FireShotGunDouble(event_args_t* args)
 		EV_MuzzleFlash();
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(SHOTGUN_FIRE2, 0);
 		V_PunchAxis(0, -10.0);
+
+		gHUD.m_flCrosshairSize += 50;
 	}
 
 	for (j = 0; j < 2; j++)
@@ -628,6 +634,8 @@ void EV_FireShotGunSingle(event_args_t* args)
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(SHOTGUN_FIRE, 0);
 
 		V_PunchAxis(0, -5.0);
+
+		gHUD.m_flCrosshairSize += 30;
 	}
 
 	EV_GetDefaultShellInfo(args, origin, velocity, ShellVelocity, ShellOrigin, forward, right, up, 32, -12, 6);
@@ -684,6 +692,8 @@ void EV_FireMP5(event_args_t* args)
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(MP5_FIRE1 + gEngfuncs.pfnRandomLong(0, 2), 0);
 
 		V_PunchAxis(0, gEngfuncs.pfnRandomFloat(-2, 2));
+
+		gHUD.m_flCrosshairSize += 12;
 	}
 
 	EV_GetDefaultShellInfo(args, origin, velocity, ShellVelocity, ShellOrigin, forward, right, up, 20, -12, 4);
@@ -720,6 +730,8 @@ void EV_FireMP52(event_args_t* args)
 	{
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(MP5_LAUNCH, 0);
 		V_PunchAxis(0, -10);
+
+		gHUD.m_flCrosshairSize += 40;
 	}
 
 	switch (gEngfuncs.pfnRandomLong(0, 1))
@@ -767,6 +779,8 @@ void EV_FirePython(event_args_t* args)
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(PYTHON_FIRE1, multiplayer ? 1 : 0);
 
 		V_PunchAxis(0, -10.0);
+
+		gHUD.m_flCrosshairSize += 35;
 	}
 
 	switch (gEngfuncs.pfnRandomLong(0, 1))
@@ -875,6 +889,9 @@ void EV_FireGauss(event_args_t* args)
 	if (EV_IsLocal(idx))
 	{
 		V_PunchAxis(0, -2.0);
+
+		gHUD.m_flCrosshairSize += flDamage;
+ 
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(GAUSS_FIRE2, 0);
 
 		if (!m_fPrimaryFire)
@@ -1183,6 +1200,8 @@ void EV_FireCrossbow2(event_args_t* args)
 			gEngfuncs.pEventAPI->EV_WeaponAnimation(CROSSBOW_FIRE1, 0);
 		else
 			gEngfuncs.pEventAPI->EV_WeaponAnimation(CROSSBOW_FIRE3, 0);
+
+		gHUD.m_flCrosshairSize += 10;
 	}
 
 	// Store off the old count
@@ -1260,6 +1279,8 @@ void EV_FireCrossbow(event_args_t* args)
 		else
 			gEngfuncs.pEventAPI->EV_WeaponAnimation(CROSSBOW_FIRE3, 0);
 
+		gHUD.m_flCrosshairSize += 10;
+ 
 		V_PunchAxis(0, -2.0);
 	}
 }
@@ -1287,6 +1308,8 @@ void EV_FireRpg(event_args_t* args)
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(RPG_FIRE2, 0);
 
 		V_PunchAxis(0, -5.0);
+
+		gHUD.m_flCrosshairSize += 25;
 	}
 }
 //======================
@@ -1462,6 +1485,8 @@ void EV_HornetGunFire(event_args_t* args)
 	{
 		V_PunchAxis(0, gEngfuncs.pfnRandomLong(0, 2));
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(HGUN_SHOOT, 0);
+
+		gHUD.m_flCrosshairSize += 10;
 	}
 
 	switch (gEngfuncs.pfnRandomLong(0, 2))
