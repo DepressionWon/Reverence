@@ -701,6 +701,17 @@ void HUD_WeaponsPostThink(local_state_s* from, local_state_s* to, usercmd_t* cmd
 		((CRpg*)player.m_pActiveItem)->m_cActiveRockets = (int)from->client.vuser2[2];
 	}
 
+	if (player.m_pActiveItem->m_iId == WEAPON_TRIPMINE)
+	{
+		((CTripmine*)player.m_pActiveItem)->m_bReDeploy = static_cast<bool>(from->client.vuser2[1]);
+		((CTripmine*)player.m_pActiveItem)->m_flAnimTime = (float)from->client.vuser2[2];
+	}
+
+	if (player.m_pActiveItem->m_iId == WEAPON_EGON)
+	{
+		((CEgon*)player.m_pActiveItem)->m_fireMode = static_cast<EGON_FIREMODE>(from->client.vuser2[1]);
+	}
+ 
 	// Don't go firing anything if we have died or are spectating
 	// Or if we don't have a weapon model deployed
 	if ((player.pev->deadflag != (DEAD_DISCARDBODY + 1)) &&
@@ -769,6 +780,17 @@ void HUD_WeaponsPostThink(local_state_s* from, local_state_s* to, usercmd_t* cmd
 		to->client.vuser2[2] = ((CRpg*)player.m_pActiveItem)->m_cActiveRockets;
 	}
 
+	if (player.m_pActiveItem->m_iId == WEAPON_TRIPMINE)
+	{
+		to->client.vuser2[1] = static_cast<float>(((CTripmine*)player.m_pActiveItem)->m_bReDeploy);
+		to->client.vuser2[2] = static_cast<float>(((CTripmine*)player.m_pActiveItem)->m_flAnimTime);
+	}
+
+	if (player.m_pActiveItem->m_iId == WEAPON_EGON)
+	{
+		to->client.vuser2[1] = static_cast<float>(((CEgon*)player.m_pActiveItem)->m_fireMode);
+	}
+ 
 	// Make sure that weapon animation matches what the game .dll is telling us
 	//  over the wire ( fixes some animation glitches )
 	if (g_runfuncs && (HUD_GetWeaponAnim() != to->client.weaponanim))

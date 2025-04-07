@@ -30,8 +30,14 @@ extern BEAM* pBeam;
 extern BEAM* pBeam2;
 void HUD_GetLastOrg(float* org);
 
+extern float g_flDmgTime;
+extern byte g_fFireMode;
+
+#define EGON_DISCHARGE_INTERVAL 0.1
+
 void UpdateBeams()
 {
+	float timedist = 0.0f;
 	Vector forward, vecSrc, vecEnd, origin, angles, right, up;
 	Vector view_ofs;
 	pmtrace_t tr;
@@ -59,20 +65,52 @@ void UpdateBeams()
 	gEngfuncs.pEventAPI->EV_SetSolidPlayers(idx - 1);
 
 	gEngfuncs.pEventAPI->EV_SetTraceHull(2);
-	gEngfuncs.pEventAPI->EV_PlayerTrace(vecSrc, vecEnd, PM_STUDIO_BOX, -1, &tr);
+	gEngfuncs.pEventAPI->EV_PlayerTrace(vecSrc, vecEnd, PM_NORMAL, -1, &tr);
 
 	gEngfuncs.pEventAPI->EV_PopPMStates();
 
+	if (g_flDmgTime < gEngfuncs.GetClientTime())
+	{
+		g_flDmgTime = gEngfuncs.GetClientTime() + EGON_DISCHARGE_INTERVAL;
+	}
+
+	timedist = (g_flDmgTime - gEngfuncs.GetClientTime()) / EGON_DISCHARGE_INTERVAL;
+
+	if (timedist < 0)
+		timedist = 0;
+	else if (timedist > 1)
+		timedist = 1;
+	timedist = 1 - timedist;
+ 
 	if (pBeam)
 	{
 		pBeam->target = tr.endpos;
 		pBeam->die = gEngfuncs.GetClientTime() + 0.1; // We keep it alive just a little bit forward in the future, just in case.
+
+		// Fix speed of client beam
+		pBeam->freq = pBeam->speed * gEngfuncs.GetClientTime();
+
+		// WIDE
+		if (g_fFireMode == 1)
+		{
+			pBeam->r = (30 + (25 * timedist)) / 255.0f;
+			pBeam->g = (30 + (30 * timedist)) / 255.0f;
+		}
+		else
+		{
+			pBeam->r = (60 + (25 * timedist)) / 255.0f;
+			pBeam->g = (120 + (30 * timedist)) / 255.0f;
+		}
+		pBeam->b = (64 + 80 * fabs(sin(gEngfuncs.GetClientTime() * 10))) / 255.0f;
 	}
 
 	if (pBeam2)
 	{
 		pBeam2->target = tr.endpos;
 		pBeam2->die = gEngfuncs.GetClientTime() + 0.1; // We keep it alive just a little bit forward in the future, just in case.
+
+		// Fix speed of client beam
+		pBeam2->freq = pBeam2->speed * gEngfuncs.GetClientTime();
 	}
 }
 

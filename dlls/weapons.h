@@ -964,6 +964,7 @@ public:
 	void EndAttack();
 	void Attack();
 	void PrimaryAttack() override;
+	void SecondaryAttack() override;
 	bool ShouldWeaponIdle() override { return true; }
 	void WeaponIdle() override;
 
@@ -994,9 +995,10 @@ public:
 
 	unsigned short m_usEgonStop;
 
+	EGON_FIREMODE m_fireMode;
+
 private:
 	float m_shootTime;
-	EGON_FIREMODE m_fireMode;
 	float m_shakeTime;
 	bool m_deployed;
 
@@ -1174,6 +1176,27 @@ public:
 	bool Deploy() override;
 	void Holster() override;
 	void WeaponIdle() override;
+	void ItemPostFrame() override;
+	void Place();
+
+	void DecrementTimers() override
+	{
+		m_flAnimTime -= gpGlobals->frametime;
+		if (m_flAnimTime < 0.0f)
+			m_flAnimTime = 0.0f;
+	}
+
+	float m_flAnimTime;
+	bool m_bReDeploy;
+
+	float TimeBase()
+	{
+#ifdef CLIENT_WEAPONS
+		return UTIL_WeaponTimeBase() + 0.1f;
+#else
+		return 0.0f;
+#endif
+	}
 
 	bool UseDecrement() override
 	{

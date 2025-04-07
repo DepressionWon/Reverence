@@ -428,15 +428,15 @@ void CTripmine::Holster()
 		pev->nextthink = gpGlobals->time + 0.1;
 	}
 
+	m_bReDeploy = false;
+	m_flAnimTime = 0.0f;
+ 
 	SendWeaponAnim(TRIPMINE_HOLSTER);
 	EMIT_SOUND(ENT(m_pPlayer->pev), CHAN_WEAPON, "common/null.wav", 1.0, ATTN_NORM);
 }
 
-void CTripmine::PrimaryAttack()
+void CTripmine::Place()
 {
-	if (m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] <= 0)
-		return;
-
 	UTIL_MakeVectors(m_pPlayer->pev->v_angle + m_pPlayer->pev->punchangle);
 	Vector vecSrc = m_pPlayer->GetGunPosition();
 	Vector vecAiming = gpGlobals->v_forward;
@@ -486,6 +486,53 @@ void CTripmine::PrimaryAttack()
 
 	m_flNextPrimaryAttack = GetNextAttackDelay(0.3);
 	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + UTIL_SharedRandomFloat(m_pPlayer->random_seed, 10, 15);
+}
+
+void CTripmine::PrimaryAttack()
+{
+	if (m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] <= 0)
+		return;
+
+	if (m_flAnimTime > TimeBase())
+		return;
+
+	UTIL_MakeVectors(m_pPlayer->pev->v_angle + m_pPlayer->pev->punchangle);
+	Vector vecSrc = m_pPlayer->GetGunPosition();
+	Vector vecAiming = gpGlobals->v_forward;
+
+	TraceResult tr;
+
+	UTIL_TraceLine(vecSrc, vecSrc + vecAiming * 128, dont_ignore_monsters, ENT(m_pPlayer->pev), &tr);
+
+	if (tr.flFraction < 1.0)
+	{
+		SendWeaponAnim(TRIPMINE_ARM1);
+		m_flAnimTime = TimeBase() + 1.02f;
+	}
+	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + UTIL_SharedRandomFloat(m_pPlayer->random_seed, 10, 15);
+}
+
+void CTripmine::ItemPostFrame()
+{
+	if (m_flAnimTime > 0.0f)
+	{
+		if (m_flAnimTime < TimeBase())
+		{
+			if (m_bReDeploy)
+			{
+				SendWeaponAnim(TRIPMINE_DRAW);
+				m_flAnimTime = 0.0f;
+				m_bReDeploy = false;
+			}
+			else
+			{
+				Place();
+				m_flAnimTime = TimeBase() + 0.37f;
+				m_bReDeploy = true;
+			}
+		}
+	}
+	CBasePlayerWeapon::ItemPostFrame();
 }
 
 void CTripmine::WeaponIdle()

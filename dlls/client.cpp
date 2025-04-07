@@ -1908,6 +1908,15 @@ void UpdateClientData(const edict_t* ent, int sendweapons, struct clientdata_s* 
 						cd->vuser2.y = static_cast<vec_t>(((CRpg*)pl->m_pActiveItem)->m_fSpotActive);
 						cd->vuser2.z = ((CRpg*)pl->m_pActiveItem)->m_cActiveRockets;
 					}
+					if (pl->m_pActiveItem->m_iId == WEAPON_TRIPMINE)
+					{
+						cd->vuser2.y = static_cast<vec_t>(((CTripmine*)pl->m_pActiveItem)->m_bReDeploy);
+						cd->vuser2.z = static_cast<vec_t>(((CTripmine*)pl->m_pActiveItem)->m_flAnimTime);
+					}
+					if (pl->m_pActiveItem->m_iId == WEAPON_EGON)
+					{
+						cd->vuser2.y = static_cast<vec_t>(((CEgon*)pl->m_pActiveItem)->m_fireMode);
+					}
 				}
 			}
 		}

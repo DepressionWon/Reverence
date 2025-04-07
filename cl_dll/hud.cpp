@@ -86,7 +86,6 @@ cvar_t* cl_rollangle = nullptr;
 cvar_t* cl_rollspeed = nullptr;
 cvar_t* cl_bobtilt = nullptr;
 cvar_t* r_decals = nullptr;
-cvar_t* cl_viewmodel_lag_enabled;
 
 void ShutdownInput();
 

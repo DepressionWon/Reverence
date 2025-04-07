@@ -1302,6 +1302,9 @@ int g_fireAnims2[] = {EGON_ALTFIRECYCLE};
 BEAM* pBeam;
 BEAM* pBeam2;
 
+float g_flDmgTime = 0.0f;
+byte g_fFireMode = FIRE_NARROW;
+
 void EV_EgonFire(event_args_t* args)
 {
 	int idx, iFireMode;
@@ -1312,10 +1315,12 @@ void EV_EgonFire(event_args_t* args)
 	iFireMode = args->iparam2;
 	bool iStartup = 0 != args->bparam1;
 
+	g_fFireMode = iFireMode;
+	bool bWide = (iFireMode == FIRE_WIDE);
 
 	if (iStartup)
 	{
-		if (iFireMode == FIRE_WIDE)
+		if (bWide)
 			gEngfuncs.pEventAPI->EV_PlaySound(idx, origin, CHAN_WEAPON, EGON_SOUND_STARTUP, 0.98, ATTN_NORM, 0, 125);
 		else
 			gEngfuncs.pEventAPI->EV_PlaySound(idx, origin, CHAN_WEAPON, EGON_SOUND_STARTUP, 0.9, ATTN_NORM, 0, 100);
@@ -1328,7 +1333,7 @@ void EV_EgonFire(event_args_t* args)
 		//This ensures no more than 1 of those is ever active at the same time.
 		gEngfuncs.pEventAPI->EV_StopSound(idx, CHAN_STATIC, EGON_SOUND_RUN);
 
-		if (iFireMode == FIRE_WIDE)
+		if (bWide)
 			gEngfuncs.pEventAPI->EV_PlaySound(idx, origin, CHAN_STATIC, EGON_SOUND_RUN, 0.98, ATTN_NORM, 0, 125);
 		else
 			gEngfuncs.pEventAPI->EV_PlaySound(idx, origin, CHAN_STATIC, EGON_SOUND_RUN, 0.9, ATTN_NORM, 0, 100);
@@ -1336,7 +1341,7 @@ void EV_EgonFire(event_args_t* args)
 
 	//Only play the weapon anims if I shot it.
 	if (EV_IsLocal(idx))
-		gEngfuncs.pEventAPI->EV_WeaponAnimation(g_fireAnims1[gEngfuncs.pfnRandomLong(0, 3)], 0);
+		gEngfuncs.pEventAPI->EV_WeaponAnimation((iFireMode == FIRE_WIDE) ? g_fireAnims2[0] : g_fireAnims1[gEngfuncs.pfnRandomLong(0, 3)], 0);
 
 	if (iStartup && EV_IsLocal(idx) && !pBeam && !pBeam2 && 0 != cl_lw->value) //Adrian: Added the cl_lw check for those lital people that hate weapon prediction.
 	{
@@ -1370,24 +1375,30 @@ void EV_EgonFire(event_args_t* args)
 
 			int iBeamModelIndex = gEngfuncs.pEventAPI->EV_FindModelIndex(EGON_BEAM_SPRITE);
 
-			float r = 50.0f;
-			float g = 50.0f;
-			float b = 125.0f;
-
-			//if ( IEngineStudio.IsHardware() )
-			{
-				r /= 255.0f;
-				g /= 255.0f;
-				b /= 255.0f;
-			}
-
-
-			pBeam = gEngfuncs.pEfxAPI->R_BeamEntPoint(idx | 0x1000, tr.endpos, iBeamModelIndex, 99999, 3.5, 0.2, 0.7, 55, 0, 0, r, g, b);
+			pBeam = gEngfuncs.pEfxAPI->R_BeamEntPoint(idx | 0x1000, tr.endpos, iBeamModelIndex, 99999, 3.5f,
+				bWide ? 0.2f : 0.06f,
+				0.7,
+				(bWide ? 55 : 110) * 0.1f,
+				0, 0, 0, 0, 0);
 
 			if (pBeam)
 				pBeam->flags |= (FBEAM_SINENOISE);
 
-			pBeam2 = gEngfuncs.pEfxAPI->R_BeamEntPoint(idx | 0x1000, tr.endpos, iBeamModelIndex, 99999, 5.0, 0.08, 0.7, 25, 0, 0, r, g, b);
+			float r, g, b = 1.0f;
+
+			if (iFireMode == FIRE_NARROW)
+			{
+				r = 80.0f / 255.0f;
+				g = 120.0f / 255.0f;
+			}
+			else
+			{
+				r = g = 50.0f / 255.0f;
+			}
+
+			pBeam2 = gEngfuncs.pEfxAPI->R_BeamEntPoint(idx | 0x1000, tr.endpos, iBeamModelIndex, 99999, 5.0, bWide ? 0.08f : 0.02f, 0.7, 25 * 0.1f, 0, 0, r, g, b);
+
+			g_flDmgTime = 0.0f;
 		}
 	}
 }
@@ -1424,10 +1435,10 @@ void EV_EgonStop(event_args_t* args)
 		}
 
 		// HACK: only reset animation if the Egon is still equipped.
-		if (g_CurrentWeaponId == WEAPON_EGON)
-		{
-			gEngfuncs.pEventAPI->EV_WeaponAnimation(EGON_IDLE1, 0);
-		}
+		//	if (g_CurrentWeaponId == WEAPON_EGON)
+		//	{
+		//		gEngfuncs.pEventAPI->EV_WeaponAnimation(EGON_IDLE1, 0);
+		//	}
 	}
 }
 //======================
@@ -1505,7 +1516,7 @@ void EV_TripmineFire(event_args_t* args)
 
 	//Hit something solid
 	if (tr.fraction < 1.0)
-		gEngfuncs.pEventAPI->EV_WeaponAnimation(TRIPMINE_DRAW, 0);
+		gEngfuncs.pEventAPI->EV_WeaponAnimation(TRIPMINE_ARM2, 0);
 
 	gEngfuncs.pEventAPI->EV_PopPMStates();
 }

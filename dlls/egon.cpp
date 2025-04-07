@@ -214,8 +214,31 @@ void CEgon::Attack()
 
 void CEgon::PrimaryAttack()
 {
-	m_fireMode = FIRE_WIDE;
 	Attack();
+}
+
+void CEgon::SecondaryAttack()
+{
+	if (m_fireState != FIRE_OFF)
+	{
+		EndAttack();
+		m_fireState = FIRE_OFF;
+		m_flNextPrimaryAttack = UTIL_WeaponTimeBase() + 1.0;
+	}
+	else if (m_fireMode == FIRE_WIDE)
+	{
+		m_fireMode = FIRE_NARROW;
+		SendWeaponAnim(EGON_ALTFIREOFF);
+
+		m_flNextPrimaryAttack = m_flNextSecondaryAttack = m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 0.75f;
+	}
+	else
+	{
+		m_fireMode = FIRE_WIDE;
+		SendWeaponAnim(EGON_ALTFIREON);
+
+		m_flNextPrimaryAttack = m_flNextSecondaryAttack = m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.5f;
+	}
 }
 
 void CEgon::Fire(const Vector& vecOrigSrc, const Vector& vecDir)
@@ -476,9 +499,17 @@ void CEgon::WeaponIdle()
 	if (m_flTimeWeaponIdle > UTIL_WeaponTimeBase())
 		return;
 
+	m_deployed = true;
+ 
 	if (m_fireState != FIRE_OFF)
 		EndAttack();
 
+	if (m_fireMode == FIRE_WIDE)
+	{
+		SendWeaponAnim(EGON_ALTFIRECYCLE);
+		return;
+	}
+ 
 	int iAnim;
 
 	float flRand = RANDOM_FLOAT(0, 1);
@@ -495,7 +526,6 @@ void CEgon::WeaponIdle()
 	}
 
 	SendWeaponAnim(iAnim);
-	m_deployed = true;
 }
 
 bool CEgon::CanHolster()
