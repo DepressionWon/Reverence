@@ -1,4 +1,4 @@
-Reverance SDK
+Reverence SDK
 ======================
 
 New Codebase, especially for my "Modernized" and "Cascaded/Cascation!" mods.
