@@ -82,10 +82,9 @@ extern client_sprite_t* GetSpriteList(client_sprite_t* pList, const char* psz, i
 
 extern float IN_GetMouseSensitivity();
 cvar_t* cl_lw = NULL;
-cvar_t* cl_rollangle = nullptr;
-cvar_t* cl_rollspeed = nullptr;
 cvar_t* cl_bobtilt = nullptr;
 cvar_t* r_decals = nullptr;
+cvar_t* cl_gunsmoke; 
 
 void ShutdownInput();
 
@@ -132,6 +131,13 @@ int __MsgFunc_GameMode(const char* pszName, int iSize, void* pbuf)
 {
 	return static_cast<int>(gHUD.MsgFunc_GameMode(pszName, iSize, pbuf));
 }
+
+int __MsgFunc_Impact(const char* pszName, int iSize, void* pbuf)
+{
+	gHUD.MsgFunc_Impact(pszName, iSize, pbuf);
+	return 1;
+}
+
 
 // TFFree Command Menu
 void __CmdFunc_OpenCommandMenu()
@@ -315,6 +321,7 @@ void CHud::Init()
 
 	HOOK_MESSAGE(SpecFade);
 	HOOK_MESSAGE(ResetFade);
+	HOOK_MESSAGE(Impact);
 
 	// VGUI Menus
 	HOOK_MESSAGE(VGUIMenu);
@@ -322,6 +329,7 @@ void CHud::Init()
 	CVAR_CREATE("hud_classautokill", "1", FCVAR_ARCHIVE | FCVAR_USERINFO); // controls whether or not to suicide immediately on TF class switch
 	CVAR_CREATE("hud_takesshots", "0", FCVAR_ARCHIVE);					   // controls whether or not to automatically take screenshots at the end of a round
 
+	CVAR_CREATE("viewmodel_fov", "0.0f", FCVAR_ARCHIVE); // clientside viewmodel fov
 
 	m_iLogo = 0;
 	m_iFOV = 0;

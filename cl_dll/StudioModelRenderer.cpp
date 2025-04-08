@@ -17,7 +17,7 @@
 
 #include "studio_util.h"
 #include "r_studioint.h"
-
+#include <filesystem>
 #include "StudioModelRenderer.h"
 #include "GameStudioModelRenderer.h"
 
@@ -1220,6 +1220,23 @@ bool CStudioModelRenderer::StudioDrawModel(int flags)
 		IEngineStudio.StudioSetRemapColors(m_nTopColor, m_nBottomColor);
 
 		StudioRenderModel();
+
+		// clientside batterylight lightning effect
+		if (!strcmp(m_pCurrentEntity->model->name, "models/w_battery.mdl") && (m_pCurrentEntity->curstate.body == 0 || m_pCurrentEntity->curstate.body == 3))
+		{
+			dlight_t* dl = gEngfuncs.pEfxAPI->CL_AllocDlight(0);
+			VectorCopy(m_pCurrentEntity->curstate.origin, dl->origin);
+			dl->radius = 64;
+			dl->color.r = 0;
+			dl->color.g = 96;
+			dl->color.b = 128;
+
+			if (gHUD.isPaused)
+				dl->die = 0;
+			else
+				dl->die = gHUD.m_flTimeDelta + 0.1f + gHUD.m_flTime;
+		}
+
 	}
 
 	return true;

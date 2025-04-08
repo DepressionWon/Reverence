@@ -29,6 +29,8 @@
 #include "animation.h"
 #include "weapons.h"
 #include "func_break.h"
+#include <UserMessages.h>
+#include <pm_materials.h>
 
 extern Vector VecBModelOrigin(entvars_t* pevBModel);
 
@@ -1355,6 +1357,116 @@ void CBaseMonster::TraceAttack(entvars_t* pevAttacker, float flDamage, Vector ve
 	}
 }
 
+ int TraceTexturetype(Vector vecSrc, Vector vecEnd, CBaseEntity* pEntity)
+
+{
+	char chTextureType;
+
+	const char* pTextureName;
+
+	float rgfl1[3];
+
+	float rgfl2[3];
+
+	char szbuffer[64];
+
+	vecSrc.CopyToArray(rgfl1);
+
+	vecEnd.CopyToArray(rgfl2);
+
+	chTextureType = 0;
+	if (pEntity)
+		pTextureName = TRACE_TEXTURE(ENT(pEntity->pev), rgfl1, rgfl2);
+	else
+		pTextureName = TRACE_TEXTURE(ENT(0), rgfl1, rgfl2);
+	if (pTextureName)
+	{
+		if (*pTextureName == '-' || *pTextureName == '+')
+			pTextureName += 2;
+		if (*pTextureName == '{' || *pTextureName == '!' || *pTextureName == '~' || *pTextureName == ' ')
+			pTextureName++;
+		strcpy(szbuffer, pTextureName);
+		szbuffer[CBTEXTURENAMEMAX - 1] = 0;
+		chTextureType = TEXTURETYPE_Find(szbuffer);
+	}
+	return chTextureType;
+}
+void ImpactBullet(TraceResult* ptr, Vector vecSrc, Vector vecEnd)
+{
+	int Material;
+	CBaseEntity* pEntity = CBaseEntity::Instance(ptr->pHit);
+	int chTextureType = TraceTexturetype(vecSrc, vecEnd, pEntity);
+	if (pEntity && pEntity->Classify() != CLASS_NONE && pEntity->Classify() != CLASS_MACHINE)
+	{
+		chTextureType = CHAR_TEX_FLESH;
+	}
+	switch (chTextureType)
+	{
+	default:
+	case CHAR_TEX_CONCRETE:
+		Material = 0;
+		break;
+
+	case CHAR_TEX_GRATE:
+		Material = 1;
+		break;
+
+	case CHAR_TEX_METAL:
+		Material = 1;
+		break;
+
+	case CHAR_TEX_DIRT:
+		Material = 3;
+		break;
+
+	case CHAR_TEX_VENT:
+		Material = 1;
+		break;
+
+	case CHAR_TEX_TILE:
+		Material = 0;
+		break;
+
+	case CHAR_TEX_WOOD:
+		Material = 2;
+		break;
+
+	case CHAR_TEX_GLASS:
+		Material = 4;
+		break;
+
+	case CHAR_TEX_COMPUTER:
+		Material = 5;
+		break;
+	}
+
+	if (chTextureType != CHAR_TEX_FLESH)
+	{
+
+		MESSAGE_BEGIN(MSG_ALL, gmsgImpact);
+
+		WRITE_SHORT(Material);
+
+		WRITE_BYTE(1);
+
+		WRITE_COORD(ptr->vecEndPos.x);
+
+		WRITE_COORD(ptr->vecEndPos.y);
+
+		WRITE_COORD(ptr->vecEndPos.z);
+
+
+
+		WRITE_COORD(ptr->vecPlaneNormal.x);
+
+		WRITE_COORD(ptr->vecPlaneNormal.y);
+
+		WRITE_COORD(ptr->vecPlaneNormal.z);
+
+		MESSAGE_END();
+	}
+}
+
 /*
 ================
 FireBullets
@@ -1484,6 +1596,8 @@ void CBaseEntity::FireBullets(unsigned int cShots, Vector vecSrc, Vector vecDirS
 
 					break;
 				}
+
+			ImpactBullet(&tr, vecSrc, vecEnd);
 		}
 		// make bullet trails
 		UTIL_BubbleTrail(vecSrc, tr.vecEndPos, (flDistance * tr.flFraction) / 64.0);
@@ -1575,6 +1689,9 @@ Vector CBaseEntity::FireBulletsPlayer(unsigned int cShots, Vector vecSrc, Vector
 
 					break;
 				}
+
+			ImpactBullet(&tr, vecSrc, vecEnd);
+ 
 		}
 		// make bullet trails
 		UTIL_BubbleTrail(vecSrc, tr.vecEndPos, (flDistance * tr.flFraction) / 64.0);

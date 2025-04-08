@@ -27,6 +27,7 @@ extern IParticleMan* g_pParticleMan;
 extern BEAM* pBeam;
 extern BEAM* pBeam2;
 
+extern void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, float PosNorm_Y, float PosNorm_Z, int DoPuff, int Material);
 
 /// USER-DEFINED SERVER MESSAGE HANDLERS
 
@@ -155,4 +156,33 @@ bool CHud::MsgFunc_Weapons(const char* pszName, int iSize, void* pbuf)
 	m_iWeaponBits = (lowerBits & 0XFFFFFFFF) | ((upperBits & 0XFFFFFFFF) << 32ULL);
 
 	return true;
+}
+
+bool CHud::MsgFunc_Impact(const char* pszName, int iSize, void* pbuf)
+{
+	BEGIN_READ(pbuf, iSize);
+
+	int MatType = READ_SHORT();
+
+	int DoPuffSpr = READ_BYTE();
+
+	vec_t Pos_X, Pos_Y, Pos_Z;
+
+	float PosNorm_X, PosNorm_Y, PosNorm_Z;
+
+	Pos_X = READ_COORD();
+
+	Pos_Y = READ_COORD();
+
+	Pos_Z = READ_COORD();
+
+	PosNorm_X = READ_COORD();
+
+	PosNorm_Y = READ_COORD();
+
+	PosNorm_Z = READ_COORD();
+
+	EV_HLDM_Particles(Pos_X, Pos_Y, Pos_Z, PosNorm_X, PosNorm_Y, PosNorm_Z, DoPuffSpr, MatType);
+
+	return 1;
 }

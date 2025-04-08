@@ -89,10 +89,6 @@ cvar_t* scr_ofsz;
 cvar_t* v_centermove;
 cvar_t* v_centerspeed;
 
-cvar_t* cl_viewmodel_ofs_right;
-cvar_t* cl_viewmodel_ofs_forward;
-cvar_t* cl_viewmodel_ofs_up;
-
 cvar_t* cl_bobcycle;
 cvar_t* cl_bob;
 cvar_t* cl_bobup;
@@ -104,6 +100,7 @@ cvar_t* cl_viewrollangle;
 cvar_t* cl_viewrollspeed;
 
 cvar_t* cl_vanilla_visuals;
+cvar_t* cl_weaponintertia;
 
 // These cvars are not registered (so users can't cheat), so set the ->value field directly
 // Register these cvars in V_Init() if needed for easy tweaking
@@ -238,11 +235,12 @@ float V_CalcBob(struct ref_params_s* pparams)
 	bob = bob * 0.3 + bob * 0.7 * sin(cycle);
 	bob = V_min(bob, 4);
 	bob = V_max(bob, -7);
-	return bob;
 
 	// HUD Movement
 	gHUD.m_flHudLagOfs[0] = bob;
 	gHUD.m_flHudLagOfs[1] = bob;
+
+	return bob;
 }
 
 /*
@@ -528,6 +526,26 @@ typedef struct
 	int CurrentAngle;
 } viewinterp_t;
 
+float SmoothValues(float startValue, float endValue, float speed)
+{
+	float absd, d, finalValue;
+	d = endValue - startValue;
+	absd = fabs(d);
+
+	if (absd > 0.01f)
+	{
+		if (d > 0)
+			finalValue = startValue + (absd * speed);
+		else
+			finalValue = startValue - (absd * speed);
+	}
+	else
+	{
+		finalValue = endValue;
+	}
+	startValue = finalValue;
+	return startValue;
+}
 
 /*
 ==============
@@ -570,6 +588,23 @@ void V_CalcViewModelLag(ref_params_t* pparams, cl_entity_s* view)
 		Vector origin;
 		origin = origin + (vDifference * -1.0f) * flScale;
 
+		// this controls the origin of the weapon when moving up/down (jumping, etc)
+		float simvelzmid = pparams->simvel[2] * 0.007;
+		if (simvelzmid <= -1.5)
+			simvelzmid = -1.5; // another cap
+		if (simvelzmid >= 1.5)
+			simvelzmid = 1.5; // another cap
+		gHUD.velz = SmoothValues(gHUD.velz, simvelzmid, pparams->frametime * 7);
+		view->origin[2] -= gHUD.velz;
+		if (cl_vanilla_visuals->value == 0)
+		{
+			view->angles[0] -= gHUD.velz * 1.1f;
+		}
+		else
+		{
+			view->angles[0] -= gHUD.velz * 2.5f;
+		}
+
 		if (ScreenWidth >= 2560 && ScreenHeight >= 1600)
 			HUD_LAG_VALUE = 17;
 		else if (ScreenWidth >= 1280 && ScreenHeight > 720)
@@ -584,7 +619,6 @@ void V_CalcViewModelLag(ref_params_t* pparams, cl_entity_s* view)
 		gHUD.m_flHudLagOfs[1] += V_CalcRoll(vOriginalAngles, ((vDifference * 1.0f) * flScale), HUD_LAG_VALUE, 500, 2) * 280.0f;
 		view->origin = view->origin + (vDifference * -1.0f) * flScale;
 	}
-
 	AngleVectors(InvPitch(vOriginalAngles), forward, right, up);
 	float pitch = -vOriginalAngles[PITCH];
 	if (pitch > 180.0f)
@@ -758,9 +792,9 @@ void V_CalcNormalRefdef(struct ref_params_s* pparams)
 	static Vector sv_punchangle;
 	static float forward_add, right_add, up_add;
 
-	float forward_offset = cl_viewmodel_ofs_forward->value;
-	float right_offset = cl_viewmodel_ofs_right->value;
-	float up_offset = cl_viewmodel_ofs_up->value;
+	float forward_offset = 0;
+	float right_offset = 0;
+	float up_offset = 0;
 
 	V_DriftPitch(pparams);
 
@@ -1000,12 +1034,21 @@ void V_CalcNormalRefdef(struct ref_params_s* pparams)
 
 		if (cl_vanilla_visuals->value == 0)
 		{
-			pparams->viewangles[0] += yBob * 0.07f;
-			pparams->viewangles[1] += xBob * 0.13f;
+			pparams->viewangles[ROLL] += yBob * 0.05;
+			pparams->viewangles[PITCH] += xBob * 0.19;
 		}
-
-		VectorCopy(view->angles, view->curstate.angles);
+		else
+		{
+			pparams->viewangles[0] += bob * 0.07f;
+			pparams->viewangles[1] += bob * 0.13f;
+		}
 	}
+
+	// weapon viewmodel fov
+	float viewmodelfov = CVAR_GET_FLOAT("viewmodel_fov");
+	view->origin[0] += viewmodelfov * pparams->forward[0] * 0.1;
+	view->origin[1] += viewmodelfov * pparams->forward[1] * 0.1;
+	view->origin[2] += viewmodelfov * pparams->forward[2] * 0.1;
 
 	// pushing the view origin down off of the same X/Z plane as the ent's origin will give the
 	// gun a very nice 'shifting' effect when the player looks up/down. If there is a problem
@@ -1042,7 +1085,7 @@ void V_CalcNormalRefdef(struct ref_params_s* pparams)
 	VectorAdd(pparams->viewangles, (float*)&ev_punchangle, pparams->viewangles);
 
 	V_DropPunchAngle(pparams->frametime, (float*)&ev_punchangle);
-	if (cl_vanilla_visuals->value == 0)
+	if (cl_weaponintertia->value == 1)
 		V_CalcViewModelLag(pparams, view);
 	if (cl_vanilla_visuals->value == 0)
 		V_ApplyJumpAngles(pparams, view);
@@ -2102,10 +2145,6 @@ void V_Init()
 	v_centermove = gEngfuncs.pfnRegisterVariable("v_centermove", "0.15", 0);
 	v_centerspeed = gEngfuncs.pfnRegisterVariable("v_centerspeed", "500", 0);
 
-	cl_viewmodel_ofs_right = gEngfuncs.pfnRegisterVariable("cl_viewmodel_ofs_right", "0", FCVAR_ARCHIVE);	  // x = right
-	cl_viewmodel_ofs_forward = gEngfuncs.pfnRegisterVariable("cl_viewmodel_ofs_forward", "0", FCVAR_ARCHIVE); // y = forward
-	cl_viewmodel_ofs_up = gEngfuncs.pfnRegisterVariable("cl_viewmodel_ofs_up", "0", FCVAR_ARCHIVE);			  // z = up
-
 	cl_bobcycle = gEngfuncs.pfnRegisterVariable("cl_bobcycle", "0.8", 0); // best default for my experimental gun wag (sjb)
 	cl_bob = gEngfuncs.pfnRegisterVariable("cl_bob", "0.01", 0);		  // 0.01 // best default for my experimental gun wag (sjb)
 	cl_bobup = gEngfuncs.pfnRegisterVariable("cl_bobup", "0.5", 0);
@@ -2117,6 +2156,7 @@ void V_Init()
 	cl_viewrollspeed = gEngfuncs.pfnRegisterVariable("cl_viewrollspeed", "325", FCVAR_ARCHIVE);
 
 	cl_vanilla_visuals = gEngfuncs.pfnRegisterVariable("cl_vanilla_visuals", "0", FCVAR_ARCHIVE);
+	cl_weaponintertia = gEngfuncs.pfnRegisterVariable("cl_weaponintertia", "1", FCVAR_ARCHIVE);
 }
 
 

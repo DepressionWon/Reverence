@@ -516,6 +516,8 @@ public:
 	cvar_t* m_pCvarStealMouse;
 	cvar_t* m_pCvarDraw;
 
+	float velz;
+
 	int m_iFontHeight;
 	int DrawHudNumber(int x, int y, int iFlags, int iNumber, int r, int g, int b);
 	int DrawHudString(int x, int y, int iMaxX, const char* szString, int r, int g, int b);
@@ -598,6 +600,7 @@ public:
 	bool MsgFunc_SetFOV(const char* pszName, int iSize, void* pbuf);
 	bool MsgFunc_Concuss(const char* pszName, int iSize, void* pbuf);
 	bool MsgFunc_Weapons(const char* pszName, int iSize, void* pbuf);
+	bool MsgFunc_Impact(const char* pszName, int iSize, void* pbuf);
 
 	// Screen information
 	SCREENINFO m_scrinfo;
@@ -624,6 +627,8 @@ public:
 
 	cvar_t* hud_crosshair;
 	cvar_t* hud_crosshair_speed;
+
+	bool isPaused;
 };
 
 extern CHud gHUD;

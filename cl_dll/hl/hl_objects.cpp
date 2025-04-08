@@ -28,6 +28,8 @@
 
 extern BEAM* pBeam;
 extern BEAM* pBeam2;
+extern dlight_t* pLight;
+
 void HUD_GetLastOrg(float* org);
 
 extern float g_flDmgTime;
@@ -37,6 +39,12 @@ extern byte g_fFireMode;
 
 void UpdateBeams()
 {
+	float r = 50.0f;
+	float g = 50.0f;
+	float b = 125.0f;
+
+	static float randmultiplier = 0;
+ 
 	float timedist = 0.0f;
 	Vector forward, vecSrc, vecEnd, origin, angles, right, up;
 	Vector view_ofs;
@@ -111,6 +119,19 @@ void UpdateBeams()
 
 		// Fix speed of client beam
 		pBeam2->freq = pBeam2->speed * gEngfuncs.GetClientTime();
+	}
+
+	if (pLight)
+	{
+		pLight->origin = vecSrc;
+		pLight->radius = lerp(pLight->radius, gEngfuncs.pfnRandomFloat(128, 256), gHUD.m_flTimeDelta * 17.0f);
+		randmultiplier = lerp(randmultiplier, gEngfuncs.pfnRandomFloat(0.1f, 8.0f), gHUD.m_flTimeDelta * 15.0f);
+
+		pLight->color.r = V_min(V_max(r * randmultiplier, 0), 255);
+		pLight->color.g = V_min(V_max(g * randmultiplier, 0), 255);
+		pLight->color.b = V_min(V_max(b * randmultiplier, 0), 255);
+
+		pLight->die = gEngfuncs.GetClientTime() + 0.75f;
 	}
 }
 

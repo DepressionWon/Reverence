@@ -4,3 +4,4 @@
 !utils/vgui/lib/win32_vc16/vgui.lib
 /cl_dll/Rev_particles.h
 /cl_dll/Rev_particles.cpp
+/cl_dll/filesystem.cpp

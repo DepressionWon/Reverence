@@ -51,12 +51,51 @@ static int tracerCount[MAX_PLAYERS];
 void V_PunchAxis(int axis, float punch);
 void VectorAngles(const float* forward, float* angles);
 
+void MuzzleFlash(int index, const cl_entity_s* entity);
+void MuzzleFlash(int index, float r, float g, float b, float a, float radius, float life, float decay, Vector vecOrigin = Vector(0, 0, 0));
+
 extern cvar_t* cl_lw;
 extern cvar_t* r_decals;
 
 static inline bool EV_HLDM_IsBSPModel(physent_t* pe)
 {
 	return pe != nullptr && (pe->solid == SOLID_BSP || pe->movetype == MOVETYPE_PUSHSTEP);
+}
+
+void MuzzleFlash(int index, float r, float g, float b, float a, float radius, float life, float decay, Vector vecOrigin)
+{
+	cl_entity_s* entity = gEngfuncs.GetViewModel();
+
+	dlight_s* dl = gEngfuncs.pEfxAPI->CL_AllocDlight(entity->index);
+	dlight_s* el = gEngfuncs.pEfxAPI->CL_AllocElight(entity->index);
+	if (dl)
+	{
+		if (vecOrigin != Vector(0, 0, 0))
+			dl->origin = vecOrigin;
+		else
+			dl->origin = entity->attachment[index];
+
+		dl->color.r = r * a;
+		dl->color.g = g * a;
+		dl->color.b = b * a;
+		dl->die = gEngfuncs.GetClientTime() + life;
+		dl->radius = radius;
+		dl->decay = decay;
+	}
+	if (el)
+	{
+		if (vecOrigin != Vector(0, 0, 0))
+			el->origin = vecOrigin;
+		else
+			el->origin = entity->attachment[index];
+
+		el->color.r = r * a;
+		el->color.g = g * a;
+		el->color.b = b * a;
+		el->die = gEngfuncs.GetClientTime() + life;
+		el->radius = radius;
+		el->decay = decay;
+	}
 }
 
 // play a strike sound based on the texture that was hit by the attack traceline.  VecSrc/VecEnd are the
@@ -281,6 +320,27 @@ void EV_HLDM_GunshotDecalTrace(pmtrace_t* pTrace, char* decalName)
 			gEngfuncs.pEfxAPI->Draw_DecalIndex(gEngfuncs.pEfxAPI->Draw_DecalIndexFromName(decalName)),
 			gEngfuncs.pEventAPI->EV_IndexFromTrace(pTrace), 0, pTrace->endpos, 0);
 	}
+
+	// wallpuff code
+	int modelindex;
+	char* spritename = "sprites/shot_smoke.spr"; // name of your sprite
+
+	modelindex = gEngfuncs.pEventAPI->EV_FindModelIndex(spritename);
+
+	Vector velocity;
+	VectorCopy(pTrace->endpos, velocity);
+	velocity = velocity.Normalize() * 16;
+
+	Vector origin;
+	VectorMA(pTrace->endpos, 2, pTrace->plane.normal, origin);
+	VectorScale(pTrace->plane.normal, 8, velocity); // don't clip in the wall
+
+	//	If you wish to have sparks along with the smoke uncomment this line.
+	gEngfuncs.pEfxAPI->R_SparkShower(origin);
+
+	velocity[2] += 4; // make the wall puff drift upwards
+
+	gEngfuncs.pEfxAPI->R_TempSprite(origin, velocity, 0.2, modelindex, kRenderTransAdd, 0, 0.35, 1.0 /* life in seconds*/, FTENT_SPRANIMATE);
 }
 
 void EV_HLDM_DecalGunshot(pmtrace_t* pTrace, int iBulletType)
@@ -445,6 +505,349 @@ void EV_HLDM_FireBullets(int idx, float* forward, float* right, float* up, int c
 		gEngfuncs.pEventAPI->EV_PopPMStates();
 	}
 }
+
+//======================
+
+// PARTICLES START
+
+//======================
+
+void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, float PosNorm_Y, float PosNorm_Z, int DoPuff, int Material)
+
+{
+
+	pmtrace_t tr;
+
+	pmtrace_t* pTrace = &tr;
+
+
+
+	pTrace->endpos.x = Pos_X;
+
+	pTrace->endpos.y = Pos_Y;
+
+	pTrace->endpos.z = Pos_Z;
+
+
+
+	pTrace->plane.normal.x = PosNorm_X;
+
+	pTrace->plane.normal.y = PosNorm_Y;
+
+	pTrace->plane.normal.z = PosNorm_Z;
+
+
+	Vector angles, forward, right, up;
+
+
+
+	VectorAngles(pTrace->plane.normal, angles);
+
+	AngleVectors(angles, forward, up, right);
+
+	forward.z = -forward.z;
+
+
+
+	bool fDoPuffs = false;
+
+	bool fDoSparks = false;
+
+	bool fDoMuzzle = false;
+
+	bool fDoParticles = false;
+
+	int a, r, g, b;
+
+	int m_iParticle = 0;
+
+	float scale;
+	if (Material == 0) // concrete, tile
+
+	{
+
+		switch (gEngfuncs.pfnRandomLong(0, 2))
+		{
+
+		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_concrete01.spr"); break;
+
+		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_concrete02.spr"); break;
+
+		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_concrete03.spr"); break;
+
+		}
+
+		fDoSparks = (gEngfuncs.pfnRandomLong(1, 2) == 1);
+
+		fDoPuffs = true;
+
+		fDoMuzzle = false;
+
+		fDoParticles = true;
+
+		a = 96;
+
+		r = 128;
+
+		g = 128;
+
+		b = 128;
+
+		scale = 0.03;
+	}
+	if (Material == 1) // metal, vent, grate
+	{
+		switch (gEngfuncs.pfnRandomLong(0, 2))
+
+		{
+
+		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_metal01.spr"); break;
+
+		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_metal02.spr"); break;
+
+		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_metal03.spr"); break;
+
+		}
+
+		fDoSparks = (gEngfuncs.pfnRandomLong(1, 2) == 1);
+
+		fDoPuffs = false;
+
+		fDoMuzzle = true;
+
+		fDoParticles = (gEngfuncs.pfnRandomLong(1, 2) == 1);
+
+		scale = 0.03;
+	}
+	if (Material == 2) // wood
+
+	{
+
+		switch (gEngfuncs.pfnRandomLong(0, 2))
+
+		{
+
+		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_wood01.spr"); break;
+
+		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_wood02.spr"); break;
+
+		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_wood03.spr"); break;
+
+		}
+
+		fDoPuffs = true;
+
+		fDoSparks = false;
+
+		fDoMuzzle = false;
+
+		fDoParticles = true;
+
+		a = 128;
+
+		r = 97;
+
+		g = 86;
+
+		b = 53;
+
+		scale = 0.06;
+	}
+	if (Material == 3) // dirt
+
+	{
+
+		switch (gEngfuncs.pfnRandomLong(0, 2))
+
+		{
+
+		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_dirt01.spr"); break;
+
+		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_dirt02.spr"); break;
+
+		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_dirt03.spr"); break;
+
+		}
+
+		fDoPuffs = true;
+
+		fDoSparks = false;
+
+		fDoMuzzle = false;
+
+		fDoParticles = true;
+
+		a = 64;
+
+		r = 128;
+
+		g = 128;
+
+		b = 128;
+
+		scale = 0.03;
+	}
+	if (Material == 4) // glass
+
+	{
+
+		switch (gEngfuncs.pfnRandomLong(0, 2))
+		{
+		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_glass01.spr"); break;
+
+		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_glass02.spr"); break;
+
+		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_glass03.spr"); break;
+
+		}
+
+		fDoPuffs = false;
+
+		fDoSparks = false;
+
+		fDoMuzzle = false;
+
+		fDoParticles = (gEngfuncs.pfnRandomLong(1, 2) == 1);
+
+		scale = 0.03;
+	}
+	if (Material == 5) // computer
+	{
+		switch (gEngfuncs.pfnRandomLong(0, 2))
+		{
+		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_computer01.spr"); break;
+
+		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_computer02.spr"); break;
+
+		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_computer03.spr"); break;
+
+		}
+
+		fDoPuffs = false;
+
+		fDoSparks = (gEngfuncs.pfnRandomLong(1, 2) == 1);
+
+		fDoMuzzle = false;
+
+		fDoParticles = (gEngfuncs.pfnRandomLong(1, 2) == 1);
+
+		scale = 0.03;
+	}
+	if (DoPuff != 0)
+
+	{
+
+		if (fDoPuffs)
+		{ // get sprite index
+			int iWallsmoke = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/smokepuff.spr");
+			// create sprite
+			TEMPENTITY* pTemp = gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos,
+
+				forward * gEngfuncs.pfnRandomFloat(10, 30) + right * gEngfuncs.pfnRandomFloat(-6, 6) + up * gEngfuncs.pfnRandomFloat(0, 6),
+
+				0.7, iWallsmoke, kRenderTransAdd, kRenderFxNone, 1.0, 0.3, FTENT_SPRANIMATE | FTENT_FADEOUT | FTENT_COLLIDEKILL);
+			if (pTemp)
+			{ // sprite created successfully, adjust some things
+
+				pTemp->fadeSpeed = 3.0;
+
+				pTemp->entity.curstate.framerate = 25.0;
+
+				pTemp->entity.curstate.renderamt = a;
+
+				pTemp->entity.curstate.rendercolor.r = r;
+
+				pTemp->entity.curstate.rendercolor.g = g;
+
+				pTemp->entity.curstate.rendercolor.b = b;
+			}
+		}
+
+
+		int iRand = gEngfuncs.pfnRandomLong(0, 0x7FFF);
+
+		if (iRand < (0x7fff / 2)) // not every bullet makes a sound.
+
+		{
+
+			switch (iRand % 3)
+
+			{
+
+			case 0: gEngfuncs.pEventAPI->EV_PlaySound(-1, pTrace->endpos, 0, "ricochet/ric1.wav", 1.0, ATTN_NORM, 0, PITCH_NORM); break;
+
+			case 1: gEngfuncs.pEventAPI->EV_PlaySound(-1, pTrace->endpos, 0, "ricochet/ric2.wav", 1.0, ATTN_NORM, 0, PITCH_NORM); break;
+
+			case 2: gEngfuncs.pEventAPI->EV_PlaySound(-1, pTrace->endpos, 0, "ricochet/ric3.wav", 1.0, ATTN_NORM, 0, PITCH_NORM); break;
+			}
+		}
+	}
+	if (fDoSparks)
+	{ // make some sparks
+		gEngfuncs.pEfxAPI->R_SparkShower(pTrace->endpos);
+	}
+	if (fDoMuzzle)
+
+	{
+
+		dlight_t* dl = gEngfuncs.pEfxAPI->CL_AllocDlight(0);
+
+		dl->origin = pTrace->endpos;
+
+		dl->color.r = 255; // red
+
+		dl->color.g = 255; // green
+
+		dl->color.b = 128; // blue
+
+		dl->radius = 100;
+
+		dl->die = gEngfuncs.GetClientTime() + 0.01;
+
+
+		gEngfuncs.pEfxAPI->R_MuzzleFlash(pTrace->endpos, 11);
+	}
+	float NumParticles = gEngfuncs.pfnRandomFloat(2, 5);
+	int Options = FTENT_SLOWGRAVITY | FTENT_COLLIDEKILL | FTENT_ROTATE;
+	if (fDoParticles)
+	{ // make much particles! (this is my own idea, i think...)
+
+		if (NumParticles >= 2)
+
+		{
+
+			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
+
+			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
+		}
+
+		if (NumParticles >= 3)
+
+		{
+
+			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
+		}
+
+		if (NumParticles >= 4)
+
+		{
+
+			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
+		}
+
+		if (NumParticles == 5)
+
+		{
+
+			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
+		}
+	}
+}
+//=======================================
+// Particles end
+//=======================================
+
+
 
 //======================
 //	    GLOCK START
@@ -943,6 +1346,13 @@ void EV_FireGauss(event_args_t* args)
 				(m_fPrimaryFire ? 255 : 255) / 255.0,
 				(m_fPrimaryFire ? 128 : 255) / 255.0,
 				(m_fPrimaryFire ? 0 : 255) / 255.0);
+			float alpha = (m_fPrimaryFire ? 125.0f : flDamage);
+			if (EV_IsLocal(idx))
+				MuzzleFlash(0, (m_fPrimaryFire ? 255 : 255), (m_fPrimaryFire ? 128 : 255), (m_fPrimaryFire ? 0 : 255), alpha / 255.0, alpha * 2.4, alpha / 150.0, alpha * 5.5);
+			else
+			{
+				MuzzleFlash(0, (m_fPrimaryFire ? 255 : 255), (m_fPrimaryFire ? 128 : 255), (m_fPrimaryFire ? 0 : 255), alpha / 255.0, alpha * 2.4, alpha / 150.0, alpha * 5.5, origin);
+			}
 		}
 		else
 		{
@@ -1317,13 +1727,14 @@ void EV_FireRpg(event_args_t* args)
 //======================
 
 //======================
-//	    EGON END
+//	    EGON START
 //======================
 int g_fireAnims1[] = {EGON_FIRE1, EGON_FIRE2, EGON_FIRE3, EGON_FIRE4};
 int g_fireAnims2[] = {EGON_ALTFIRECYCLE};
 
 BEAM* pBeam;
 BEAM* pBeam2;
+dlight_s* pLight;
 
 float g_flDmgTime = 0.0f;
 byte g_fFireMode = FIRE_NARROW;
@@ -1422,6 +1833,18 @@ void EV_EgonFire(event_args_t* args)
 			pBeam2 = gEngfuncs.pEfxAPI->R_BeamEntPoint(idx | 0x1000, tr.endpos, iBeamModelIndex, 99999, 5.0, bWide ? 0.08f : 0.02f, 0.7, 25 * 0.1f, 0, 0, r, g, b);
 
 			g_flDmgTime = 0.0f;
+
+			pLight = gEngfuncs.pEfxAPI->CL_AllocDlight(idx);
+
+			if (pLight)
+			{
+				pLight->color = {(byte)r, (byte)g, (byte)b};
+				pLight->origin = vecSrc;
+				pLight->radius = 0;
+				pLight->decay = 512.0f * 1.5f;
+				pLight->die = gEngfuncs.GetClientTime() + 999999.0f;
+			}
+
 		}
 	}
 }
@@ -1455,6 +1878,12 @@ void EV_EgonStop(event_args_t* args)
 		{
 			pBeam2->die = 0.0;
 			pBeam2 = NULL;
+		}
+
+		if (pLight)
+		{
+			pLight->die = gEngfuncs.GetClientTime() + 0.75f;
+			pLight = NULL;
 		}
 
 		// HACK: only reset animation if the Egon is still equipped.
