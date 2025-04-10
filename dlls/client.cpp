@@ -1046,26 +1046,28 @@ void ClientPrecache()
 
 
 	PRECACHE_MODEL("sprites/debris/smokepuff.spr");
-
+	PRECACHE_MODEL("sprites/gunsmoke.spr");
 
 
 	PRECACHE_MODEL("sprites/debris/debris_computer01.spr");
 	PRECACHE_MODEL("sprites/debris/debris_computer02.spr");
 	PRECACHE_MODEL("sprites/debris/debris_computer03.spr");
-
-
+	PRECACHE_MODEL("sprites/debris/debris_computer04.spr");
 
 	PRECACHE_MODEL("sprites/debris/debris_concrete01.spr");
 	PRECACHE_MODEL("sprites/debris/debris_concrete02.spr");
 	PRECACHE_MODEL("sprites/debris/debris_concrete03.spr");
+	PRECACHE_MODEL("sprites/debris/debris_concrete04.spr");
 
 	PRECACHE_MODEL("sprites/debris/debris_dirt01.spr");
 	PRECACHE_MODEL("sprites/debris/debris_dirt02.spr");
 	PRECACHE_MODEL("sprites/debris/debris_dirt03.spr");
+	PRECACHE_MODEL("sprites/debris/debris_dirt04.spr");
 
 	PRECACHE_MODEL("sprites/debris/debris_glass01.spr");
 	PRECACHE_MODEL("sprites/debris/debris_glass02.spr");
 	PRECACHE_MODEL("sprites/debris/debris_glass03.spr");
+	PRECACHE_MODEL("sprites/debris/debris_glass04.spr");
 
 	PRECACHE_MODEL("sprites/debris/debris_metal01.spr");
 	PRECACHE_MODEL("sprites/debris/debris_metal02.spr");

@@ -1320,6 +1320,21 @@ void CBaseMonster::TraceAttack(entvars_t *pevAttacker, float flDamage, Vector ve
 //=========================================================
 // TraceAttack
 //=========================================================
+Vector CalculateBloodDirection(entvars_t* pevVictim, const TraceResult* ptr, const Vector& attackDir)
+{
+	// Invert the attack direction so that blood sprays in the opposite direction of bullet travel.
+	Vector direction = -attackDir;
+
+	direction += ptr->vecPlaneNormal * 0.5f;
+
+	direction.x += RANDOM_FLOAT(-0.1f, 0.1f);
+	direction.y += RANDOM_FLOAT(-0.1f, 0.1f);
+	direction.z += RANDOM_FLOAT(-0.1f, 0.1f);
+
+	// Normalize the resulting vector to maintain consistent magnitude.
+	return direction.Normalize();
+}
+//=========================================================
 void CBaseMonster::TraceAttack(entvars_t* pevAttacker, float flDamage, Vector vecDir, TraceResult* ptr, int bitsDamageType)
 {
 	if (0 != pev->takedamage)
@@ -1351,7 +1366,12 @@ void CBaseMonster::TraceAttack(entvars_t* pevAttacker, float flDamage, Vector ve
 			break;
 		}
 
-		SpawnBlood(ptr->vecEndPos, BloodColor(), flDamage); // a little surface blood.
+		// Blood Streams
+		Vector bloodDir = CalculateBloodDirection(pev, ptr, g_vecAttackDir);
+		int bloodCode = (m_bloodColor == BLOOD_COLOR_RED ? 71 : m_bloodColor);
+		int particleCount = RANDOM_LONG(2, 4) * flDamage;
+		UTIL_BloodStream(ptr->vecEndPos, bloodDir, bloodCode, particleCount);
+
 		TraceBleed(flDamage, vecDir, ptr, bitsDamageType);
 		AddMultiDamage(pevAttacker, this, flDamage, bitsDamageType);
 	}

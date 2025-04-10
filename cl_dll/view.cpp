@@ -531,7 +531,6 @@ float SmoothValues(float startValue, float endValue, float speed)
 	float absd, d, finalValue;
 	d = endValue - startValue;
 	absd = fabs(d);
-
 	if (absd > 0.01f)
 	{
 		if (d > 0)

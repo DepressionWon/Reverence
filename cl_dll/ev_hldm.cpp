@@ -1,4 +1,4 @@
-/***
+﻿/***
 *
 *	Copyright (c) 1996-2002, Valve LLC. All rights reserved.
 *	
@@ -108,7 +108,7 @@ float EV_HLDM_PlayTextureSound(int idx, pmtrace_t* ptr, float* vecSrc, float* ve
 	cl_entity_t* cl_entity = NULL;
 	float fvol;
 	float fvolbar;
-	const char* rgsz[4];
+	const char* rgsz[4]{};
 	int cnt;
 	float fattn = ATTN_NORM;
 	int entity;
@@ -335,9 +335,6 @@ void EV_HLDM_GunshotDecalTrace(pmtrace_t* pTrace, char* decalName)
 	VectorMA(pTrace->endpos, 2, pTrace->plane.normal, origin);
 	VectorScale(pTrace->plane.normal, 8, velocity); // don't clip in the wall
 
-	//	If you wish to have sparks along with the smoke uncomment this line.
-	gEngfuncs.pEfxAPI->R_SparkShower(origin);
-
 	velocity[2] += 4; // make the wall puff drift upwards
 
 	gEngfuncs.pEfxAPI->R_TempSprite(origin, velocity, 0.2, modelindex, kRenderTransAdd, 0, 0.35, 1.0 /* life in seconds*/, FTENT_SPRANIMATE);
@@ -507,38 +504,23 @@ void EV_HLDM_FireBullets(int idx, float* forward, float* right, float* up, int c
 }
 
 //======================
-
 // PARTICLES START
-
 //======================
-
 void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, float PosNorm_Y, float PosNorm_Z, int DoPuff, int Material)
-
 {
-
 	pmtrace_t tr;
-
 	pmtrace_t* pTrace = &tr;
 
-
-
 	pTrace->endpos.x = Pos_X;
-
 	pTrace->endpos.y = Pos_Y;
-
 	pTrace->endpos.z = Pos_Z;
 
 
-
 	pTrace->plane.normal.x = PosNorm_X;
-
 	pTrace->plane.normal.y = PosNorm_Y;
-
 	pTrace->plane.normal.z = PosNorm_Z;
 
-
 	Vector angles, forward, right, up;
-
 
 
 	VectorAngles(pTrace->plane.normal, angles);
@@ -548,49 +530,36 @@ void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, f
 	forward.z = -forward.z;
 
 
-
 	bool fDoPuffs = false;
-
 	bool fDoSparks = false;
-
 	bool fDoMuzzle = false;
-
 	bool fDoParticles = false;
 
 	int a, r, g, b;
 
 	int m_iParticle = 0;
-
 	float scale;
 	if (Material == 0) // concrete, tile
-
 	{
-
-		switch (gEngfuncs.pfnRandomLong(0, 2))
+		switch (gEngfuncs.pfnRandomLong(0, 3))
 		{
-
 		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_concrete01.spr"); break;
 
 		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_concrete02.spr"); break;
 
 		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_concrete03.spr"); break;
 
+		case 3: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_concrete04.spr"); break;
 		}
 
 		fDoSparks = (gEngfuncs.pfnRandomLong(1, 2) == 1);
-
 		fDoPuffs = true;
-
 		fDoMuzzle = false;
-
 		fDoParticles = true;
 
 		a = 96;
-
 		r = 128;
-
 		g = 128;
-
 		b = 128;
 
 		scale = 0.03;
@@ -598,100 +567,74 @@ void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, f
 	if (Material == 1) // metal, vent, grate
 	{
 		switch (gEngfuncs.pfnRandomLong(0, 2))
-
 		{
-
 		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_metal01.spr"); break;
 
 		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_metal02.spr"); break;
 
 		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_metal03.spr"); break;
-
 		}
 
 		fDoSparks = (gEngfuncs.pfnRandomLong(1, 2) == 1);
-
 		fDoPuffs = false;
-
 		fDoMuzzle = true;
-
 		fDoParticles = (gEngfuncs.pfnRandomLong(1, 2) == 1);
 
 		scale = 0.03;
 	}
 	if (Material == 2) // wood
-
 	{
 
 		switch (gEngfuncs.pfnRandomLong(0, 2))
-
 		{
-
 		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_wood01.spr"); break;
 
 		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_wood02.spr"); break;
 
 		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_wood03.spr"); break;
-
 		}
 
 		fDoPuffs = true;
-
 		fDoSparks = false;
-
 		fDoMuzzle = false;
-
 		fDoParticles = true;
 
 		a = 128;
-
 		r = 97;
-
 		g = 86;
-
 		b = 53;
 
 		scale = 0.06;
 	}
 	if (Material == 3) // dirt
-
 	{
 
-		switch (gEngfuncs.pfnRandomLong(0, 2))
-
+		switch (gEngfuncs.pfnRandomLong(0, 3))
 		{
-
 		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_dirt01.spr"); break;
 
 		case 1: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_dirt02.spr"); break;
 
 		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_dirt03.spr"); break;
 
+		case 3: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_dirt04.spr"); break;
 		}
 
 		fDoPuffs = true;
-
 		fDoSparks = false;
-
 		fDoMuzzle = false;
-
 		fDoParticles = true;
 
 		a = 64;
-
 		r = 128;
-
 		g = 128;
-
 		b = 128;
 
 		scale = 0.03;
 	}
 	if (Material == 4) // glass
-
 	{
-
-		switch (gEngfuncs.pfnRandomLong(0, 2))
+		switch (gEngfuncs.pfnRandomLong(0, 3))
 		{
 		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_glass01.spr"); break;
 
@@ -699,21 +642,19 @@ void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, f
 
 		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_glass03.spr"); break;
 
+		case 3: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_glass04.spr"); break;
 		}
 
 		fDoPuffs = false;
-
 		fDoSparks = false;
-
 		fDoMuzzle = false;
-
 		fDoParticles = (gEngfuncs.pfnRandomLong(1, 2) == 1);
 
 		scale = 0.03;
 	}
 	if (Material == 5) // computer
 	{
-		switch (gEngfuncs.pfnRandomLong(0, 2))
+		switch (gEngfuncs.pfnRandomLong(0, 3))
 		{
 		case 0: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_computer01.spr"); break;
 
@@ -721,22 +662,18 @@ void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, f
 
 		case 2: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_computer03.spr"); break;
 
+		case 3: m_iParticle = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/debris_computer04.spr"); break;
 		}
 
 		fDoPuffs = false;
-
 		fDoSparks = (gEngfuncs.pfnRandomLong(1, 2) == 1);
-
 		fDoMuzzle = false;
-
 		fDoParticles = (gEngfuncs.pfnRandomLong(1, 2) == 1);
 
 		scale = 0.03;
 	}
 	if (DoPuff != 0)
-
 	{
-
 		if (fDoPuffs)
 		{ // get sprite index
 			int iWallsmoke = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/debris/smokepuff.spr");
@@ -763,17 +700,12 @@ void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, f
 			}
 		}
 
-
 		int iRand = gEngfuncs.pfnRandomLong(0, 0x7FFF);
 
 		if (iRand < (0x7fff / 2)) // not every bullet makes a sound.
-
 		{
-
 			switch (iRand % 3)
-
 			{
-
 			case 0: gEngfuncs.pEventAPI->EV_PlaySound(-1, pTrace->endpos, 0, "ricochet/ric1.wav", 1.0, ATTN_NORM, 0, PITCH_NORM); break;
 
 			case 1: gEngfuncs.pEventAPI->EV_PlaySound(-1, pTrace->endpos, 0, "ricochet/ric2.wav", 1.0, ATTN_NORM, 0, PITCH_NORM); break;
@@ -787,9 +719,7 @@ void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, f
 		gEngfuncs.pEfxAPI->R_SparkShower(pTrace->endpos);
 	}
 	if (fDoMuzzle)
-
 	{
-
 		dlight_t* dl = gEngfuncs.pEfxAPI->CL_AllocDlight(0);
 
 		dl->origin = pTrace->endpos;
@@ -804,47 +734,36 @@ void EV_HLDM_Particles(vec_t Pos_X, vec_t Pos_Y, vec_t Pos_Z, float PosNorm_X, f
 
 		dl->die = gEngfuncs.GetClientTime() + 0.01;
 
-
 		gEngfuncs.pEfxAPI->R_MuzzleFlash(pTrace->endpos, 11);
 	}
 	float NumParticles = gEngfuncs.pfnRandomFloat(2, 5);
 	int Options = FTENT_SLOWGRAVITY | FTENT_COLLIDEKILL | FTENT_ROTATE;
 	if (fDoParticles)
 	{ // make much particles! (this is my own idea, i think...)
-
 		if (NumParticles >= 2)
-
 		{
-
 			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
-
 			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
 		}
 
 		if (NumParticles >= 3)
-
 		{
-
 			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
 		}
 
 		if (NumParticles >= 4)
-
 		{
-
 			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
 		}
 
 		if (NumParticles == 5)
-
 		{
-
 			gEngfuncs.pEfxAPI->R_TempSprite(pTrace->endpos, forward * gEngfuncs.pfnRandomFloat(80, 120) + right * gEngfuncs.pfnRandomFloat(-124, 124) + up * gEngfuncs.pfnRandomFloat(-30, 30), scale, m_iParticle, kRenderTransAlpha, kRenderFxNone, 1.0, 20, Options);
 		}
 	}
 }
 //=======================================
-// Particles end
+// PARTICLES END
 //=======================================
 
 

@@ -5,3 +5,5 @@
 /cl_dll/Rev_particles.h
 /cl_dll/Rev_particles.cpp
 /cl_dll/filesystem.cpp
+/cl_dll/particlemanager.cpp
+/cl_dll/particlemanager.h

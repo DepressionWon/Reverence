@@ -86,6 +86,14 @@ public:
 	{
 	}
 
+	constexpr Vector& operator+=(const Vector& v)
+	{
+		x += v.x;
+		y += v.y;
+		z += v.z;
+		return *this;
+	}
+
 	// Operators
 	[[nodiscard]] constexpr Vector operator-() const { return Vector(-x, -y, -z); }
 	[[nodiscard]] constexpr bool operator==(const Vector& v) const { return x == v.x && y == v.y && z == v.z; }

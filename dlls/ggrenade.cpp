@@ -51,7 +51,7 @@ void CGrenade::Explode(TraceResult* pTrace, int bitsDamageType)
 {
 	float flRndSound; // sound randomizer
 
-	pev->model = iStringNull; //invisible
+	pev->model = iStringNull; // invisible
 	pev->solid = SOLID_NOT;	  // intangible
 
 	pev->takedamage = DAMAGE_NO;
@@ -64,6 +64,7 @@ void CGrenade::Explode(TraceResult* pTrace, int bitsDamageType)
 
 	int iContents = UTIL_PointContents(pev->origin);
 
+	// Explosion effect
 	MESSAGE_BEGIN(MSG_PAS, SVC_TEMPENTITY, pev->origin);
 	WRITE_BYTE(TE_EXPLOSION);	// This makes a dynamic light and the explosion sprites/sound
 	WRITE_COORD(pev->origin.x); // Send to PAS because of the sound
@@ -81,6 +82,22 @@ void CGrenade::Explode(TraceResult* pTrace, int bitsDamageType)
 	WRITE_BYTE(15);					   // framerate
 	WRITE_BYTE(TE_EXPLFLAG_NONE);
 	MESSAGE_END();
+
+	MESSAGE_BEGIN(MSG_PAS, SVC_TEMPENTITY, pev->origin);
+	WRITE_BYTE(TE_DLIGHT);		// Dynamic light
+	WRITE_COORD(pev->origin.x); // Position
+	WRITE_COORD(pev->origin.y);
+	WRITE_COORD(pev->origin.z);
+	WRITE_BYTE(20);	 // Radius
+	WRITE_BYTE(255); // Red
+	WRITE_BYTE(165); // Green
+	WRITE_BYTE(0);	 // Blue
+	WRITE_BYTE(10);	 // Brightness
+	WRITE_BYTE(20);	 // Decay rate -> adjust for 1-second decay if needed
+	MESSAGE_END();
+   
+	// Add a screen shake effect
+	UTIL_ScreenShake(pev->origin, 25.0, 150.0, 1.0, 1000.0);
 
 	CSoundEnt::InsertSound(bits_SOUND_COMBAT, pev->origin, NORMAL_EXPLOSION_VOLUME, 3.0);
 	entvars_t* pevOwner;

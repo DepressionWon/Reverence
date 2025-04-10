@@ -1168,15 +1168,30 @@ void UTIL_BloodStream(const Vector& origin, const Vector& direction, int color, 
 	if (g_Language == LANGUAGE_GERMAN && color == BLOOD_COLOR_RED)
 		color = 0;
 
+	// Start with the original direction.
+	Vector spreadDirection = direction;
+
+	 // Add a wavy (sinusoidal) effect.
+	float waveFrequency = 10.0f;		// Frequency of the oscillation
+	float waveAmplitude = 0.2f;			// How much the direction oscillates
+	float timeOffset = gpGlobals->time; // Use global time for smooth animation
+
+	spreadDirection.x += sin(timeOffset * waveFrequency) * waveAmplitude;
+	spreadDirection.y += cos(timeOffset * waveFrequency) * waveAmplitude;
+
+	 // Let the blood spread just a little bit.
+	spreadDirection.x += RANDOM_FLOAT(-0.05f, 0.05f);
+	spreadDirection.y += RANDOM_FLOAT(-0.05f, 0.05f);
+	spreadDirection.z += RANDOM_FLOAT(-0.05f, 0.05f);
 
 	MESSAGE_BEGIN(MSG_PVS, SVC_TEMPENTITY, origin);
 	WRITE_BYTE(TE_BLOODSTREAM);
 	WRITE_COORD(origin.x);
 	WRITE_COORD(origin.y);
 	WRITE_COORD(origin.z);
-	WRITE_COORD(direction.x);
-	WRITE_COORD(direction.y);
-	WRITE_COORD(direction.z);
+	WRITE_COORD(spreadDirection.x);
+	WRITE_COORD(spreadDirection.y);
+	WRITE_COORD(spreadDirection.z);
 	WRITE_BYTE(color);
 	WRITE_BYTE(V_min(amount, 255));
 	MESSAGE_END();
@@ -1236,8 +1251,7 @@ void UTIL_BloodDecalTrace(TraceResult* pTrace, int bloodColor)
 			UTIL_DecalTrace(pTrace, DECAL_YBLOOD1 + RANDOM_LONG(0, 5));
 	}
 }
-
-
+	
 void UTIL_DecalTrace(TraceResult* pTrace, int decalNumber)
 {
 	short entityIndex;

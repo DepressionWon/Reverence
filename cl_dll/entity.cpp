@@ -13,6 +13,8 @@
 #include "pmtrace.h"
 #include "pm_shared.h"
 #include "Exports.h"
+#include "PlatformHeaders.h"
+#include <SDL2/SDL_opengl.h>
 
 #include "particleman.h"
 extern IParticleMan* g_pParticleMan;
@@ -20,6 +22,7 @@ extern IParticleMan* g_pParticleMan;
 void Game_AddObjects();
 
 extern Vector v_origin;
+extern globalvars_t* gpGlobals;
 
 bool g_iAlive = true;
 int g_iFlashlight = 0;
@@ -325,10 +328,13 @@ void DLLEXPORT HUD_CreateEntities()
 	// Add in any game specific objects
 	Game_AddObjects();
 
+	glClearColor(0, 0, 0, 1);
+	glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+ 
+ 
 	GetClientVoiceMgr()->CreateEntities();
 }
 
-// nice muzzleflash effect
 void MuzzleFlash(int index, const cl_entity_s* entity)
 {
 	dlight_s* dl = gEngfuncs.pEfxAPI->CL_AllocDlight(entity->index);
@@ -373,6 +379,65 @@ void MuzzleFlash(int index, const cl_entity_s* entity)
 	}
 }
 
+void EV_GunsmokeEffect(Vector muzzlePosition, Vector dir)
+{
+	// Get the player entity.
+    cl_entity_t* player = gEngfuncs.GetLocalPlayer();
+
+    // Prevent gunsmoke if the player is underwater (waterlevel 2).
+	if (player && player->v.waterlevel == 2)
+		return;
+
+    // Static variables for dynamic spawn chance and reset timing.
+    static float currentChance = 0.35f;  // Start with a mid-value (35%)
+    static float nextChanceResetTime = 0.0f;
+
+    // Reset the spawn chance at longer, randomized intervals (6-30 seconds).
+    float curTime = gpGlobals->time;
+    if (curTime >= nextChanceResetTime)
+    {
+        // Randomize new spawn chance between 0.3 and 0.4 (30%-40% chance)
+        currentChance = gEngfuncs.pfnRandomFloat(0.3f, 0.4f);
+        // Next reset will occur after a random interval between 6 and 30 seconds.
+        nextChanceResetTime = curTime + gEngfuncs.pfnRandomFloat(6.0f, 30.0f);
+    }
+
+    // Only spawn if a random number is less than or equal to currentChance.
+    if (gEngfuncs.pfnRandomFloat(0.0f, 1.0f) > currentChance)
+        return;
+
+    // Find the sprite index for gunsmoke.
+    const int spriteIndex = gEngfuncs.pEventAPI->EV_FindModelIndex("sprites/gunsmoke.spr");
+    if (spriteIndex == 0)
+    {
+        gEngfuncs.Con_Printf("Error: gunsmoke sprite not found!\n");
+        return;
+    }
+
+    // Set the smoke origin at the muzzle position.
+    Vector smokeOrigin = muzzlePosition;
+
+    // Calculate velocity with directional normalization plus random variation.
+    Vector velocity = dir.Normalize() * gEngfuncs.pfnRandomFloat(4.0f, 7.0f) +
+                      Vector(gEngfuncs.pfnRandomFloat(-1.0f, 1.0f),
+                             gEngfuncs.pfnRandomFloat(-1.0f, 1.0f),
+                             gEngfuncs.pfnRandomFloat(1.0f, 2.0f));
+
+    // Randomize the size of the sprite between a larger range for a more dramatic effect.
+    float size = gEngfuncs.pfnRandomFloat(70.0f, 90.0f); 
+
+    // Create the temporary sprite using additive transparency.
+    TEMPENTITY* ent = gEngfuncs.pEfxAPI->R_TempSprite(smokeOrigin, velocity,gEngfuncs.pfnRandomFloat(0.1f, 0.2f), spriteIndex, kRenderTransAdd, 0, 0.3f,size,FTENT_SPRANIMATE | FTENT_FADEOUT | FTENT_COLLIDEKILL);
+
+    if (ent)
+    {
+        // Start with a slightly higher opacity for better visibility.
+        ent->entity.curstate.renderamt = 20.f; 
+        ent->fadeSpeed = gEngfuncs.pfnRandomFloat(500.0f, 750.0f);  // Faster fade-out, with randomized speed.
+        ent->entity.curstate.framerate = gEngfuncs.pfnRandomFloat(40.0f, 55.0f);  // Randomize animation speed.
+    }
+}
+
 /*
 =========================
 HUD_StudioEvent
@@ -387,6 +452,8 @@ void DLLEXPORT HUD_StudioEvent(const struct mstudioevent_s* event, const struct 
 
 	bool iMuzzleFlash = true;
 
+	Vector dir;
+	AngleVectors(entity->angles, dir, nullptr, nullptr);
 
 	switch (event->event)
 	{
@@ -395,24 +462,28 @@ void DLLEXPORT HUD_StudioEvent(const struct mstudioevent_s* event, const struct 
 			gEngfuncs.pEfxAPI->R_MuzzleFlash((float*)&entity->attachment[0], atoi(event->options));
 
 		MuzzleFlash(0, entity);
+		EV_GunsmokeEffect(entity->attachment[0], dir);
 		break;
 	case 5011:
 		if (iMuzzleFlash)
 			gEngfuncs.pEfxAPI->R_MuzzleFlash((float*)&entity->attachment[1], atoi(event->options));
 
 		MuzzleFlash(1, entity);
+		EV_GunsmokeEffect(entity->attachment[1], dir);
 		break;
 	case 5021:
 		if (iMuzzleFlash)
 			gEngfuncs.pEfxAPI->R_MuzzleFlash((float*)&entity->attachment[2], atoi(event->options));
 
 		MuzzleFlash(2, entity);
+		EV_GunsmokeEffect(entity->attachment[2], dir);
 		break;
 	case 5031:
 		if (iMuzzleFlash)
 			gEngfuncs.pEfxAPI->R_MuzzleFlash((float*)&entity->attachment[3], atoi(event->options));
 
 		MuzzleFlash(3, entity);
+		EV_GunsmokeEffect(entity->attachment[3], dir);
 		break;
 	case 5002:
 		gEngfuncs.pEfxAPI->R_SparkEffect((float*)&entity->attachment[0], atoi(event->options), -100, 100);
