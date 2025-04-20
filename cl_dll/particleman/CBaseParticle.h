@@ -20,6 +20,7 @@
 #define RENDER_FACEPLAYER (1 << 7)		   // m_vAngles == Player view angles
 #define RENDER_FACEPLAYER_ROTATEZ (1 << 8) //Just like above but m_vAngles.z is untouched so the sprite can rotate.
 
+#define RENDER_DEPTHRANGE (1 << 9)
 
 #include "CMiniMem.h"
 

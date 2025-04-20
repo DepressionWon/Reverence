@@ -25,6 +25,8 @@
  #include "Exports.h"
  #include "PlatformHeaders.h"
  #include <SDL2/SDL_opengl.h>
+#include <algorithm>
+ #include <cmath>
 
 #include "pmtrace.h"
 #include "pm_defs.h"
@@ -45,7 +47,11 @@ static GLuint g_iBlankTex = 0;
 
 extern cvar_t* tfc_newmodels;
 
+void NormalizeAngles(float* angles);
+
 extern extra_player_info_t g_PlayerExtraInfo[MAX_PLAYERS_HUD + 1];
+
+extern ref_params_t g_refparams;
 
 // team colors for old TFC models
 #define TEAM1_COLOR 150
@@ -1340,8 +1346,8 @@ void CStudioModelRenderer::StudioEstimateGait(entity_state_t* pplayer)
 	// VectorAdd( pplayer->velocity, pplayer->prediction_error, est_velocity );
 	if (m_fGaitEstimation)
 	{
-		VectorSubtract(m_pCurrentEntity->origin, m_pPlayerInfo->prevgaitorigin, est_velocity);
-		VectorCopy(m_pCurrentEntity->origin, m_pPlayerInfo->prevgaitorigin);
+		VectorSubtract(m_pCurrentEntity->curstate.origin, m_pPlayerInfo->prevgaitorigin, est_velocity);
+		VectorCopy(m_pCurrentEntity->curstate.origin, m_pPlayerInfo->prevgaitorigin);
 		m_flGaitMovement = Length(est_velocity);
 		if (dt <= 0 || m_flGaitMovement / dt < 5)
 		{
@@ -1507,8 +1513,27 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 	if (m_nPlayerIndex < 0 || m_nPlayerIndex >= gEngfuncs.GetMaxClients())
 		return false;
 
+	bool bPlayerBody = (m_pCurrentEntity == gEngfuncs.GetLocalPlayer() && !CL_IsThirdPerson()) ? true : false;
 
-	m_pRenderModel = IEngineStudio.SetupPlayerModel(m_nPlayerIndex);
+	if (bPlayerBody)
+	{
+		Vector angles;
+		gEngfuncs.GetViewAngles(angles);
+
+		if (angles[0] < 0 || g_refparams.waterlevel != 0)
+			return false;
+
+		if (gHUD.HasSuit())
+		{
+			m_pRenderModel = IEngineStudio.Mod_ForName("models/player_body.mdl", 0);
+		}
+		else
+		{
+			m_pRenderModel = IEngineStudio.Mod_ForName("models/playersci_body.mdl", 0);
+		}
+	}
+	else
+		m_pRenderModel = IEngineStudio.SetupPlayerModel(m_nPlayerIndex);
 
 
 	if (m_pRenderModel == NULL)
@@ -1518,6 +1543,17 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 	IEngineStudio.StudioSetHeader(m_pStudioHeader);
 	IEngineStudio.SetRenderModel(m_pRenderModel);
 
+	if (bPlayerBody)
+	{
+		Vector angles, forward;
+		gEngfuncs.GetViewAngles(angles);
+		angles[0] = 0;
+		AngleVectors(angles, forward, nullptr, nullptr);
+
+		m_pCurrentEntity->angles.x = 0;
+		m_pCurrentEntity->origin = m_pCurrentEntity->origin - forward * 19.5f;
+	}
+ 
 	if (0 != pplayer->gaitsequence)
 	{
 		Vector orig_angles;
@@ -1570,7 +1606,7 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 
 	m_pPlayerInfo = NULL;
 
-	if ((flags & STUDIO_EVENTS) != 0)
+	if ((flags & STUDIO_EVENTS) != 0 && !bPlayerBody)
 	{
 		StudioCalcAttachments();
 		IEngineStudio.StudioClientEvents();
@@ -1583,6 +1619,11 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 		}
 	}
 
+	if (bPlayerBody)
+	{
+		m_pCurrentEntity->origin = m_pCurrentEntity->curstate.origin;
+	}
+ 
 	if ((flags & STUDIO_RENDER) != 0)
 	{
 		if (0 != m_pCvarHiModels->value && m_pRenderModel != m_pCurrentEntity->model)
@@ -1623,10 +1664,21 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 
 		IEngineStudio.StudioSetRemapColors(m_nTopColor, m_nBottomColor);
 
-		StudioRenderModel();
+		if (bPlayerBody)
+		{
+			glEnable(GL_DEPTH_CLAMP);
+			glDepthRange(0.0f, 0.4f);
+			StudioRenderModel();
+			glDepthRange(0.0f, 1.0f);
+			glDisable(GL_DEPTH_CLAMP);
+		}
+		else
+		{
+			StudioRenderModel();
+		}
 		m_pPlayerInfo = NULL;
 
-		if (0 != pplayer->weaponmodel)
+		if (0 != pplayer->weaponmodel && !bPlayerBody)
 		{
 			cl_entity_t saveent = *m_pCurrentEntity;
 

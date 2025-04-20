@@ -23,6 +23,8 @@ void Game_AddObjects();
 
 extern Vector v_origin;
 extern globalvars_t* gpGlobals;
+extern cvar_t* r_drawlegs;
+ref_params_t g_refparams;
 
 bool g_iAlive = true;
 int g_iFlashlight = 0;
@@ -331,7 +333,6 @@ void DLLEXPORT HUD_CreateEntities()
 	glClearColor(0, 0, 0, 1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
  
- 
 	GetClientVoiceMgr()->CreateEntities();
 }
 
@@ -359,9 +360,9 @@ void MuzzleFlash(int index, const cl_entity_s* entity)
 		dl->color.r = 231;
 		dl->color.g = 219;
 		dl->color.b = 14;
-		dl->die = gEngfuncs.GetClientTime() + 0.15f;
+		dl->die = gEngfuncs.GetClientTime() + 0.13f;
 		dl->radius = gEngfuncs.pfnRandomFloat(245.0f, 256.0f);
-		dl->decay = 1024.0f;
+		dl->decay = 512.0f;
 	}
 	dlight_s* el = gEngfuncs.pEfxAPI->CL_AllocElight(entity->index);
 	if (el)
@@ -375,7 +376,7 @@ void MuzzleFlash(int index, const cl_entity_s* entity)
 		el->color.b = 14;
 		el->die = gEngfuncs.GetClientTime() + 0.15f;
 		el->radius = gEngfuncs.pfnRandomFloat(245.0f, 256.0f);
-		el->decay = 1024.0f;
+		el->decay = 512.0f;
 	}
 }
 
@@ -527,6 +528,11 @@ void DLLEXPORT HUD_TempEntUpdate(
 	if (g_pParticleMan)
 		g_pParticleMan->SetVariables(cl_gravity, vAngles);
 
+	if (r_drawlegs->value != 0.0f)
+	{
+		Callback_AddVisibleEntity(gEngfuncs.GetLocalPlayer());
+	}
+ 
 	// Nothing to simulate
 	if (!*ppTempEntActive)
 		return;
@@ -839,11 +845,18 @@ void DLLEXPORT HUD_TempEntUpdate(
 				gEngfuncs.pEfxAPI->R_RocketTrail(pTemp->entity.prevstate.origin, pTemp->entity.origin, 1);
 			}
 
-			if ((pTemp->flags & FTENT_GRAVITY) != 0)
-				pTemp->entity.baseline.origin[2] += gravity;
-			else if ((pTemp->flags & FTENT_SLOWGRAVITY) != 0)
-				pTemp->entity.baseline.origin[2] += gravitySlow;
-
+			if (gEngfuncs.PM_PointContents(pTemp->entity.origin, 0) == CONTENTS_WATER)
+			{
+				pTemp->entity.baseline.origin[2] -= g_refparams.frametime;
+				pTemp->entity.baseline.origin[2] = V_min(pTemp->entity.baseline.origin[2], 5);
+			}
+			else
+			{
+				if ((pTemp->flags & FTENT_GRAVITY) != 0)
+					pTemp->entity.baseline.origin[2] += gravity;
+				else if ((pTemp->flags & FTENT_SLOWGRAVITY) != 0)
+					pTemp->entity.baseline.origin[2] += gravitySlow;
+			}
 			if ((pTemp->flags & FTENT_CLIENTCUSTOM) != 0)
 			{
 				if (pTemp->callback)

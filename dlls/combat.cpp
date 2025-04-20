@@ -711,8 +711,23 @@ void CGib::BounceGibTouch(CBaseEntity* pOther)
 	Vector vecSpot;
 	TraceResult tr;
 
-	//if ( RANDOM_LONG(0,1) )
-	//	return;// don't bleed everytime
+	if (m_bloodColor != DONT_BLEED)
+	{
+		switch (RANDOM_LONG(0, 6))
+		{
+		case 0: EMIT_SOUND(ENT(pev), CHAN_WEAPON, "debris/flesh1.wav", 0.55, ATTN_NORM); break;
+
+		case 1: EMIT_SOUND(ENT(pev), CHAN_WEAPON, "debris/flesh2.wav", 0.55, ATTN_NORM); break;
+
+		case 2: EMIT_SOUND(ENT(pev), CHAN_WEAPON, "debris/flesh3.wav", 0.55, ATTN_NORM); break;
+
+		case 3: EMIT_SOUND(ENT(pev), CHAN_WEAPON, "debris/flesh5.wav", 0.55, ATTN_NORM); break;
+
+		case 4: EMIT_SOUND(ENT(pev), CHAN_WEAPON, "debris/flesh6.wav", 0.55, ATTN_NORM); break;
+
+		case 5: EMIT_SOUND(ENT(pev), CHAN_WEAPON, "debris/flesh7.wav", 0.55, ATTN_NORM); break;
+		}
+	}
 
 	if ((pev->flags & FL_ONGROUND) != 0)
 	{
@@ -730,6 +745,18 @@ void CGib::BounceGibTouch(CBaseEntity* pOther)
 			UTIL_TraceLine(vecSpot, vecSpot + Vector(0, 0, -24), ignore_monsters, ENT(pev), &tr);
 
 			UTIL_BloodDecalTrace(&tr, m_bloodColor);
+
+			UTIL_BloodDrips(vecSpot, vecSpot, m_bloodColor, 10);
+
+
+			if (m_bloodColor == BLOOD_COLOR_RED)
+			{
+				UTIL_BloodStream(vecSpot, UTIL_RandomBloodVector(), 71, RANDOM_LONG(100, 300));
+			}
+			else
+			{
+				UTIL_BloodStream(vecSpot, UTIL_RandomBloodVector(), m_bloodColor, RANDOM_LONG(100, 300));
+			}
 
 			m_cBloodDecals--;
 		}
