@@ -36,7 +36,7 @@ DECLARE_MESSAGE(m_Health, Damage)
 int giDmgHeight, giDmgWidth;
 
 int giDmgFlags[NUM_DMG_TYPES] =
-	{
+{
 		DMG_POISON,
 		DMG_ACID,
 		DMG_FREEZE | DMG_SLOWFREEZE,
@@ -48,7 +48,8 @@ int giDmgFlags[NUM_DMG_TYPES] =
 		DMG_CALTROP,
 		DMG_TRANQ,
 		DMG_CONCUSS,
-		DMG_HALLUC};
+		DMG_HALLUC
+};
 
 bool CHudHealth::Init()
 {
@@ -89,6 +90,14 @@ bool CHudHealth::VidInit()
 
 	m_HUD_dmg_bio = gHUD.GetSpriteIndex("dmg_bio") + 1;
 	m_HUD_cross = gHUD.GetSpriteIndex("cross");
+	m_HUD_DigitsBG1 = gHUD.GetSpriteIndex("number_dull1");
+	m_HUD_DigitsBG2 = gHUD.GetSpriteIndex("number_dull2");
+
+	int HUD_DigitsBG1 = gHUD.GetSpriteIndex("number_dull1");
+	int HUD_DigitsBG2 = gHUD.GetSpriteIndex("number_dull2");
+
+	m_prcDigitsBG1 = &gHUD.GetSpriteRect(HUD_DigitsBG1);
+	m_prcDigitsBG2 = &gHUD.GetSpriteRect(HUD_DigitsBG2);
 
 	giDmgHeight = gHUD.GetSpriteRect(m_HUD_dmg_bio).right - gHUD.GetSpriteRect(m_HUD_dmg_bio).left;
 	giDmgWidth = gHUD.GetSpriteRect(m_HUD_dmg_bio).bottom - gHUD.GetSpriteRect(m_HUD_dmg_bio).top;
@@ -210,25 +219,34 @@ bool CHudHealth::Draw(float flTime)
 		y = ScreenHeight - gHUD.m_iFontHeight - gHUD.m_iFontHeight / 2;
 		x = CrossWidth / 2;
 
-		SPR_Set(gHUD.GetSprite(m_HUD_cross), r, g, b);
-		SPR_DrawAdditive(0, x, y, &gHUD.GetSpriteRect(m_HUD_cross));
+		// Dark 'n Griddy
+		int dScale = 1;
 
-		x = CrossWidth + HealthWidth / 2;
-		y += (int)(gHUD.m_iFontHeight * 0.2f);
+		SPR_Set(gHUD.GetSprite(m_HUD_cross), r, g, b);
+		SPR_DrawAdditive(0, x, y - (10 * dScale), &gHUD.GetSpriteRect(m_HUD_cross));
+		SPR_Set(m_hDigitsBG1, r, g, b);
+		SPR_DrawAdditive(0, x, y, m_prcDigitsBG1);
+		SPR_Set(m_hDigitsBG2, r, g, b);
+		SPR_DrawAdditive(0, x + 20, y, m_prcDigitsBG2);
+		SPR_Set(m_hDigitsBG1, r, g, b);
+		SPR_DrawAdditive(0, x + 40, y, m_prcDigitsBG1);
+
+		x = CrossWidth / 2;
+		// y += (int)(gHUD.m_iFontHeight * 0.2f);
 
 		//Reserve space for 3 digits by default, but allow it to expand
-		x += gHUD.GetHudNumberWidth(m_iHealth, 3, DHN_DRAWZERO);
+		//x += gHUD.GetHudNumberWidth(m_iHealth, 3, DHN_DRAWZERO);
 
-		gHUD.DrawHudNumberReverse(x, y, m_iHealth, DHN_DRAWZERO, r, g, b);
+		//gHUD.DrawHudNumberReverse(x, y, m_iHealth, DHN_DRAWZERO, r, g, b);
 
-		//x = gHUD.DrawHudNumber(x, y, DHN_3DIGITS | DHN_DRAWZERO, m_iHealth, r, g, b);
+		x = gHUD.DrawHudNumber(x, y, DHN_3DIGITS | DHN_DRAWZERO, m_iHealth, r, g, b);
 
-		x += HealthWidth / 2;
+		//x += HealthWidth / 2;
 
-		int iHeight = gHUD.m_iFontHeight;
-		int iWidth = HealthWidth / 10;
-		UnpackRGB(r, g, b, RGB_YELLOWISH);
-		FillRGBA(x, y, iWidth, iHeight, r, g, b, a);
+		//int iHeight = gHUD.m_iFontHeight;
+		//int iWidth = HealthWidth / 10;
+		//UnpackRGB(r, g, b, RGB_YELLOWISH);
+		//FillRGBA(x, y, iWidth, iHeight, r, g, b, a);
 	}
 
 	DrawDamage(flTime);

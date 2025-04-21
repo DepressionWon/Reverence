@@ -54,4 +54,8 @@ struct WEAPON
 	Rect rcZoomedCrosshair;
 	HSPRITE hZoomedAutoaim;
 	Rect rcZoomedAutoaim;
+	HSPRITE hDivider;
+	Rect rcDivider;
+	HSPRITE hAmmoText;
+	Rect rcAmmoText;
 };

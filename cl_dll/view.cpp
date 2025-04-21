@@ -89,6 +89,7 @@ cvar_t* v_centermove;
 cvar_t* v_centerspeed;
 
 cvar_t* cl_bobcycle_max;
+cvar_t* cl_bob;
 cvar_t* cl_bobup;
 
 cvar_t* cl_waterdist;
@@ -115,103 +116,65 @@ int HUD_LAG_VALUE; // The sensitivity of the HUD-sway effect is dependent on the
 #define clamp(val, min, max) (((val) > (max)) ? (max) : (((val) < (min)) ? (min) : (val)))
 #define InvPitch(x) Vector(-x[0], x[1], x[2])
 
-inline float RemapVal(float val, float A, float B, float C, float D)
+// Brought this back for the asthetics im ngl, its worth it trust me.
+// Could always change it back by going in the repository and lookin at it's commits.... or make it optional?
+float V_CalcBob(struct ref_params_s* pparams)
 {
-	if (A == B)
-	return val >= B ? D : C;
-	return C + (D - C) * (val - A) / (B - A);
-}
-
-struct BobValues
-{
-	float verticalBob = 0;
-	float laterialBob = 0;
-};
-
-BobValues V_CalculateBob(Vector velocity, float currentTime)
-{
-	BobValues bob;
-
-	static float bobtime;
-	static float lastbobtime;
+	static double bobtime = 0;
+	static float bob = 0;
 	float cycle;
+	static float lasttime = 0;
+	Vector vel;
 
-	float speed = Length(velocity);
-
-	speed = clamp(speed, -320.f, 320.f);
-
-	float bob_offset = RemapVal(speed, 0, 320, 0.0f, 1.0f);
-
-	bobtime += (currentTime - lastbobtime) * bob_offset;
-	lastbobtime = currentTime;
-
-	auto bobmax = cl_bobcycle_max->value;
-	auto bobup = cl_bobup->value;
-
-	// Calculate the vertical bob
-	cycle = bobtime - (int)(bobtime / bobmax) * bobmax;
-	cycle /= bobmax;
-
-	if (cycle < bobup)
+	// If the player is not on the ground or the time hasn't changed, return the last bob value
+	if (pparams->onground == -1 || pparams->time == lasttime)
 	{
-		cycle = M_PI * cycle / bobup;
+		return bob;
+	}
+
+	lasttime = pparams->time;
+
+	// Increment bobtime based on frametime
+	bobtime += pparams->frametime;
+
+	// Calculate the bobbing cycle
+	cycle = bobtime - (int)(bobtime / cl_bobcycle_max->value) * cl_bobcycle_max->value;
+	cycle /= cl_bobcycle_max->value;
+
+	// Adjust the cycle for the alpha-style bob
+	if (cycle < cl_bobup->value)
+	{
+		cycle = M_PI * cycle / cl_bobup->value;
 	}
 	else
 	{
-		cycle = M_PI + M_PI * (cycle - bobup) / (1.0f - bobup);
+		cycle = M_PI + M_PI * (cycle - cl_bobup->value) / (1.0 - cl_bobup->value);
 	}
 
-	bob.verticalBob = speed * 0.005f;
-	bob.verticalBob = bob.verticalBob * 0.3 + bob.verticalBob * 0.7 * sin(cycle);
+	// Get the player's velocity and zero out the Z component
+	VectorCopy(pparams->simvel, vel);
+	vel[2] = 0;
 
-	bob.verticalBob = clamp(bob.verticalBob, -7.0f, 4.0f);
+	// Calculate the bob magnitude based on velocity
+	float speed = sqrt(vel[0] * vel[0] + vel[1] * vel[1]);
+	bob = speed * cl_bob->value;
 
-	// Calculate the lateral bob
-	cycle = bobtime - (int)(bobtime / bobmax * 2) * bobmax * 2;
-	cycle /= bobmax * 2;
+	// Apply exaggerated alpha-style bobbing
+	float verticalBob = bob * 0.5f * sin(cycle);	// More pronounced vertical movement
+	float lateralBob = bob * 0.3f * cos(cycle * 2); // Add lateral sway
 
-	if (cycle < bobup)
-	{
-		cycle = M_PI * cycle / bobup;
-	}
-	else
-	{
-		cycle = M_PI + M_PI * (cycle - bobup) / (1.0f - bobup);
-	}
+	// Combine vertical and lateral bobbing
+	bob = verticalBob + lateralBob;
 
-	bob.laterialBob = speed * 0.005f;
-	bob.laterialBob = bob.laterialBob * 0.3 + bob.laterialBob * 0.7 * sin(cycle);
-	bob.laterialBob = clamp(bob.laterialBob, -7.0f, 4.0f);
+	// Clamp the bob value to avoid extreme values
+	bob = V_min(bob, 6.0f); // Increased max for alpha style
+	bob = V_max(bob, -6.0f);
+
+	// Apply the bobbing effect to the HUD
+	gHUD.m_flHudLagOfs[0] = lateralBob;
+	gHUD.m_flHudLagOfs[1] = verticalBob;
 
 	return bob;
-}
-
-void V_ApplyBob(struct ref_params_s* pparams, cl_entity_t* view)
-{
-	if (!pparams->time)
-		return;
-
-	auto bob = V_CalculateBob(pparams->simvel, pparams->time);
-
-	// Apply bob, but scaled down to 40%
-	VectorMA(view->origin, bob.verticalBob * 0.1f, pparams->forward, view->origin);
-
-	// Z bob a bit more
-	view->origin[2] += bob.verticalBob * 0.1f;
-
-	// bob the angles
-	view->angles[ROLL] += bob.verticalBob * 0.5f;
-	view->angles[PITCH] -= bob.verticalBob * 1.4f;
-
-	VectorMA(view->origin, bob.laterialBob * 0.8f, pparams->right, view->origin);
-
-	// bob the camera
-	pparams->viewangles[ROLL] += bob.verticalBob * 0.05;
-	pparams->viewangles[PITCH] += bob.verticalBob * 0.19;
-
-	// bob the HUD
-	gHUD.m_flHudLagOfs[0] = bob.laterialBob;
-	gHUD.m_flHudLagOfs[1] = bob.verticalBob;
 }
 
 /*
@@ -491,81 +454,32 @@ typedef struct
 	int CurrentAngle;
 } viewinterp_t;
 
-float SmoothValues(float startValue, float endValue, float speed)
+void V_CalcHudLag(ref_params_t* pparams)
 {
-	float absd, d, finalValue;
-	d = endValue - startValue;
-	absd = fabs(d);
-	if (absd > 0.01f)
-	{
-		if (d > 0)
-			finalValue = startValue + (absd * speed);
-		else
-			finalValue = startValue - (absd * speed);
-	}
-	else
-	{
-		finalValue = endValue;
-	}
-	startValue = finalValue;
-	return startValue;
-}
-
-/*
-==============
-V_CalcViewModelLag
-
-Weapon Inertia
-==============
-*/
-void V_CalcViewModelLag(ref_params_t* pparams, cl_entity_s* view)
-{
-	const float m_flWeaponLag = 1.5f;
-	float flSpeed = 5;
-	float flScale = 2;
+	const float flScale = 2.0f; // Scale for HUD movement
 	static Vector m_vecLastFacing;
-	static Vector m_vecLDifference;
-	Vector vOriginalOrigin = view->origin;
-	Vector vOriginalAngles = view->angles;
+	Vector vOriginalAngles = pparams->viewangles;
 
-	// Calculate our drift
+	// Calculate forward direction
 	Vector forward, right, up;
-	AngleVectors(InvPitch(view->angles), forward, right, up);
+	AngleVectors(InvPitch(pparams->viewangles), forward, right, up);
 
-	if (pparams->frametime != 0.0f) // not in paused
+	if (pparams->frametime != 0.0f) // Ensure not paused
 	{
-		Vector vDifference;
-		vDifference = forward - m_vecLastFacing;
-		// If we start to lag too far behind, we'll increase the "catch up" speed.
-		// Solves the problem with fast cl_yawspeed, m_yaw or joysticks rotating quickly.
-		// The old code would slam lastfacing with origin causing the viewmodel to pop to a new position
+		Vector vDifference = forward - m_vecLastFacing;
+
+		// Normalize the difference to avoid excessive lag
 		float flDiff = vDifference.Length();
-		if ((flDiff > m_flWeaponLag) && (m_flWeaponLag > 0.0f))
+		if (flDiff > 1.5f) // Threshold for excessive lag
 		{
-			float flScale = flDiff / m_flWeaponLag;
-			flSpeed *= flScale;
+			vDifference = vDifference.Normalize();
 		}
-		// FIXME:  Needs to be predictable?
-		m_vecLastFacing = m_vecLastFacing + vDifference * (flSpeed * pparams->frametime);
-		// Make sure it doesn't grow out of control!!!
+
+		// Update the last facing direction
+		m_vecLastFacing = m_vecLastFacing + vDifference * (5.0f * pparams->frametime);
 		m_vecLastFacing = m_vecLastFacing.Normalize();
 
-		Vector origin;
-		origin = origin + (vDifference * -1.0f) * flScale;
-
-		// this controls the origin of the weapon when moving up/down (jumping, etc)
-		float pmo = pparams->simvel[2] * 0.007;
-		if (pmo <= -1.5)
-			pmo = -1.5; // another cap
-		if (pmo >= 1.5)
-			pmo = 1.5; // another cap
-		gHUD.velz = SmoothValues(gHUD.velz, pmo, pparams->frametime * 7);
-		view->origin[2] -= gHUD.velz;
-		if (cl_vanilla_visuals->value == 0)
-		{
-			view->angles[0] -= gHUD.velz * 1.1f;
-		}
-
+		// Dynamically adjust HUD lag value based on screen resolution
 		if (ScreenWidth >= 2560 && ScreenHeight >= 1600)
 			HUD_LAG_VALUE = 17;
 		else if (ScreenWidth >= 1280 && ScreenHeight > 720)
@@ -575,35 +489,13 @@ void V_CalcViewModelLag(ref_params_t* pparams, cl_entity_s* view)
 		else
 			HUD_LAG_VALUE = 2;
 
-		// HUD Movement
-		gHUD.m_flHudLagOfs[0] += V_CalcRoll(vOriginalAngles, ((vDifference * -1.0f) * flScale), HUD_LAG_VALUE, 500) * 280.0f;
-		gHUD.m_flHudLagOfs[1] += V_CalcRoll(vOriginalAngles, ((vDifference * 1.0f) * flScale), HUD_LAG_VALUE, 500, 2) * 280.0f;
-		for (int i = 0; i < 3; i++)
-			m_vecLDifference[i] = lerp(m_vecLDifference[i], vDifference[i], pparams->frametime * 35.0f);
+		// Apply HUD movement offsets
+		gHUD.m_flHudLagOfs[0] += V_CalcRoll(vOriginalAngles, (vDifference * -1.0f) * flScale, HUD_LAG_VALUE, 500) * 280.0f;
+		gHUD.m_flHudLagOfs[1] += V_CalcRoll(vOriginalAngles, (vDifference * 1.0f) * flScale, HUD_LAG_VALUE, 500, 2) * 280.0f;
 
-		view->origin = view->origin + (m_vecLDifference * -1.0f) * flScale;
-	}
-	AngleVectors(InvPitch(vOriginalAngles), forward, right, up);
-	float pitch = -vOriginalAngles[PITCH];
-	if (pitch > 180.0f)
-	{
-		pitch -= 360.0f;
-	}
-	else if (pitch < -180.0f)
-	{
-		pitch += 360.0f;
-	}
-	if (m_flWeaponLag <= 0.0f)
-	{
-		view->origin = vOriginalOrigin;
-		view->angles = vOriginalAngles;
-	}
-	else
-	{
-		// FIXME: These are the old settings that caused too many exposed polys on some models
-		view->origin = view->origin + forward * (-pitch * 0.005f);
-		view->origin = view->origin + right * (-pitch * 0.003f);
-		view->origin = view->origin + up * (pitch * 0.002f);
+		// Clamp HUD offsets to avoid extreme values
+		gHUD.m_flHudLagOfs[0] = clamp(gHUD.m_flHudLagOfs[0], -25.0f, 25.0f);
+		gHUD.m_flHudLagOfs[1] = clamp(gHUD.m_flHudLagOfs[1], -25.0f, 25.0f);
 	}
 }
 
@@ -735,7 +627,7 @@ void V_CalcNormalRefdef(struct ref_params_s* pparams)
 	int i;
 	static Vector punchangles[2];
 	Vector angles;
-	float  waterOffset;
+	float bob,  waterOffset;
 	static viewinterp_t ViewInterp;
 
 	static Vector lastAngles;
@@ -783,8 +675,11 @@ void V_CalcNormalRefdef(struct ref_params_s* pparams)
 		viewheight[2] = pparams->viewheight[2];
 	}
 
+	bob = V_CalcBob(pparams);
+
 	// refresh position
 	VectorCopy(pparams->simorg, pparams->vieworg);
+	pparams->vieworg[2] += (bob);
 	VectorAdd(pparams->vieworg, viewheight, pparams->vieworg);
 
 	if (pparams->health <= 0 && (pparams->viewheight[2] != 0))
@@ -939,8 +834,20 @@ void V_CalcNormalRefdef(struct ref_params_s* pparams)
 	// Let the viewmodel shake at about 10% of the amplitude
 	gEngfuncs.V_ApplyShake(view->origin, view->angles, 0.9);
 
-	V_ApplyBob(pparams, view);
+	for (i = 0; i < 3; i++)
+	{
+		view->origin[i] += bob * 0.4 * pparams->forward[i];
+	}
+	view->origin[2] += bob;
 
+	// funny head bob
+	pparams->viewangles[ROLL] += bob * 0.05;
+	pparams->viewangles[PITCH] += bob * 0.19;
+
+	// throw in a little tilt.
+	view->angles[YAW] -= bob * 0.5;
+	view->angles[ROLL] -= bob * 1;
+	view->angles[PITCH] -= bob * 0.3;
 	VectorCopy(view->angles, view->curstate.angles);
 
 	// weapon viewmodel fov
@@ -979,14 +886,14 @@ void V_CalcNormalRefdef(struct ref_params_s* pparams)
 
 	V_DropPunchAngle(pparams->frametime, (float*)&ev_punchangle);
 	if (cl_vanilla_visuals->value == 0)
-		V_CalcViewModelLag(pparams, view);
-	if (cl_vanilla_visuals->value == 0)
 		V_ApplyJumpAngles(pparams, view);
 	if (cl_vanilla_visuals->value == 0)
 		V_ApplyCrouchAngles(pparams, view);
 	if (cl_vanilla_visuals->value == 0)
 		V_RetractWeapon(pparams, view);
  
+	V_CalcHudLag(pparams);
+
 	view->curstate.angles = view->curstate.angles + ev_punchangle + sv_punchangle;
 
 	// smooth out stair step ups
@@ -2067,7 +1974,8 @@ void V_Init()
 	v_centermove = gEngfuncs.pfnRegisterVariable("v_centermove", "0.15", 0);
 	v_centerspeed = gEngfuncs.pfnRegisterVariable("v_centerspeed", "500", 0);
 
-	cl_bobcycle_max = gEngfuncs.pfnRegisterVariable("cl_bobcycle_max", "0.45", 0);
+	cl_bobcycle_max = gEngfuncs.pfnRegisterVariable("cl_bobcycle_max", "0.8", 0);
+	cl_bob = gEngfuncs.pfnRegisterVariable("cl_bob", "0.01", 0); 
 	cl_bobup = gEngfuncs.pfnRegisterVariable("cl_bobup", "0.5", 0);
 
 	cl_waterdist = gEngfuncs.pfnRegisterVariable("cl_waterdist", "4", 0);

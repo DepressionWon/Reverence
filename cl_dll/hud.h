@@ -33,6 +33,9 @@
 #define DHN_DRAWZERO 1
 #define DHN_2DIGITS 2
 #define DHN_3DIGITS 4
+#define DHN_DRAWZERO_SM 1
+#define DHN_2DIGITS_SM 2
+#define DHN_3DIGITS_SM 4
 #define MIN_ALPHA 100
 
 #define HUDELEM_ACTIVE 1
@@ -75,6 +78,18 @@ public:
 	virtual void Think() {}
 	virtual void Reset() {}
 	virtual void InitHUDData() {} // called every time a server is connected to
+	int m_HUD_DigitsBG1;
+	int m_HUD_DigitsBG2;
+	int m_HUD_DigitsSmBG1;
+	int m_HUD_DigitsSmBG2;
+	HSPRITE m_hDigitsBG1;
+	Rect* m_prcDigitsBG1;
+	HSPRITE m_hDigitsBG2;
+	Rect* m_prcDigitsBG2;
+	HSPRITE m_hDigitsSmBG1;
+	Rect* m_prcDigitsSmBG1;
+	HSPRITE m_hDigitsSmBG2;
+	Rect* m_prcDigitsSmBG2;
 };
 
 struct HUDLIST
@@ -131,8 +146,14 @@ private:
 	float m_fFade;
 	RGBA m_rgba;
 	WEAPON* m_pWeapon;
+	HSPRITE m_hDivider;
+	Rect* m_prcDivider;
+	HSPRITE m_hAmmoText;
+	Rect* m_prcAmmoText;
 	int m_HUD_bucket0;
 	int m_HUD_selection;
+	int m_HUD_divider;
+	int m_HUD_AmmoText;
 	float m_flCrosshairColor;
 };
 
@@ -520,6 +541,7 @@ public:
 
 	int m_iFontHeight;
 	int DrawHudNumber(int x, int y, int iFlags, int iNumber, int r, int g, int b);
+	int DrawHudNumberSm(int x, int y, int iFlags, int iNumber, int r, int g, int b);
 	int DrawHudString(int x, int y, int iMaxX, const char* szString, int r, int g, int b);
 	int DrawHudStringReverse(int xpos, int ypos, int iMinX, const char* szString, int r, int g, int b);
 	int DrawHudNumberString(int xpos, int ypos, int iMinX, int iNumber, int r, int g, int b);
@@ -611,6 +633,7 @@ public:
 
 	// sprite indexes
 	int m_HUD_number_0;
+	int m_HUD_number_sm_0;
 
 
 	void AddHudElem(CHudBase* p);

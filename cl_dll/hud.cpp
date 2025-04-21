@@ -441,14 +441,7 @@ void CHud::VidInit()
 	m_hsprLogo = 0;
 	m_hsprCursor = 0;
 
-	if (ScreenWidth > 2560 && ScreenHeight > 1600)
-		m_iRes = 2560;
-	else if (ScreenWidth >= 1280 && ScreenHeight > 720)
-		m_iRes = 1280;
-	else if (ScreenWidth >= 640)
-		m_iRes = 640;
-	else
-		m_iRes = 320;
+	m_iRes = 640; // Always use 640 res HUD sprites
 
 	// Only load this once
 	if (!m_pSpriteList)
@@ -515,6 +508,7 @@ void CHud::VidInit()
 
 	// assumption: number_1, number_2, etc, are all listed and loaded sequentially
 	m_HUD_number_0 = GetSpriteIndex("number_0");
+	m_HUD_number_sm_0 = GetSpriteIndex("number_sm_0");
 
 	m_iFontHeight = m_rgrcRects[m_HUD_number_0].bottom - m_rgrcRects[m_HUD_number_0].top;
 

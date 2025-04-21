@@ -51,6 +51,15 @@ bool CHudBattery::VidInit()
 	m_prc2 = &gHUD.GetSpriteRect(HUD_suit_full);
 	m_iHeight = m_prc2->bottom - m_prc1->top;
 	m_fFade = 0;
+
+	m_HUD_DigitsBG1 = gHUD.GetSpriteIndex("number_dull1");
+	m_HUD_DigitsBG2 = gHUD.GetSpriteIndex("number_dull2");
+
+	int HUD_DigitsBG1 = gHUD.GetSpriteIndex("number_dull1");
+	int HUD_DigitsBG2 = gHUD.GetSpriteIndex("number_dull2");
+
+	m_prcDigitsBG1 = &gHUD.GetSpriteRect(HUD_DigitsBG1);
+	m_prcDigitsBG2 = &gHUD.GetSpriteRect(HUD_DigitsBG2);
 	return true;
 }
 
@@ -112,12 +121,13 @@ bool CHudBattery::Draw(float flTime)
 
 	int iOffset = (m_prc1->bottom - m_prc1->top) / 6;
 
-	y = ScreenHeight - gHUD.m_iFontHeight - gHUD.m_iFontHeight / 2;
-
 	int width = (m_prc1->right - m_prc1->left);
 
-	// this used to just be ScreenWidth/5 (4 on Updated) but that caused real issues at higher resolutions. Instead, base it on the width of this sprite.
-	x = 3 * width;
+	int bScale = 3;
+	int yScale = 1;
+
+	y = ScreenHeight - gHUD.m_iFontHeight - gHUD.m_iFontHeight / 2;
+	x = bScale * width + 53;
 
 	// make sure we have the right sprite handles
 	if (0 == m_hSprite1)
@@ -126,16 +136,24 @@ bool CHudBattery::Draw(float flTime)
 		m_hSprite2 = gHUD.GetSprite(gHUD.GetSpriteIndex("suit_full"));
 
 	SPR_Set(m_hSprite1, r, g, b);
-	SPR_DrawAdditive(0, x, y - iOffset, m_prc1);
+	SPR_DrawAdditive(0, x, y - iOffset - 10, m_prc1);
 
 	if (rc.bottom > rc.top)
 	{
 		SPR_Set(m_hSprite2, r, g, b);
-		SPR_DrawAdditive(0, x, y - iOffset + (rc.top - m_prc2->top), &rc);
+		SPR_DrawAdditive(0, x, y - iOffset - (10 * yScale) + (rc.top - m_prc2->top), &rc);
 	}
 
-	x += width;
-	y += (int)(gHUD.m_iFontHeight * 0.2f);
+	//x += width;
+	//y += (int)(gHUD.m_iFontHeight * 0.2f);
+
+	SPR_Set(m_hDigitsBG1, r, g, b);
+	SPR_DrawAdditive(0, x, y, m_prcDigitsBG1);
+	SPR_Set(m_hDigitsBG2, r, g, b);
+	SPR_DrawAdditive(0, x + 20, y, m_prcDigitsBG2);
+	SPR_Set(m_hDigitsBG1, r, g, b);
+	SPR_DrawAdditive(0, x + 40, y, m_prcDigitsBG1);
+
 	x = gHUD.DrawHudNumber(x, y, DHN_3DIGITS | DHN_DRAWZERO, m_iBat, r, g, b);
 
 	return true;

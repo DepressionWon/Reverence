@@ -15,6 +15,7 @@
 
 #include "Platform.h"
 
+#include <algorithm>
 #include <assert.h>
 #include "mathlib.h"
 #include "cdll_dll.h"
@@ -2821,7 +2822,7 @@ void PM_CheckFalling()
 			PM_PlayStepSound(PM_MapTextureTypeStepType(pmove->chtexturetype), fvol);
 
 			// Knock the screen around a little bit, temporary effect
-			pmove->punchangle[2] = pmove->flFallVelocity * 0.013; // punch z axis
+			pmove->punchangle[0] = pmove->flFallVelocity * 0.013; // punch z axis
 
 			if (pmove->punchangle[0] > 8)
 			{
@@ -2976,6 +2977,9 @@ void PM_CheckParamters()
 		VectorCopy(pmove->cmd.viewangles, v_angle);
 		VectorAdd(v_angle, pmove->punchangle, v_angle);
 
+		// CLAMP
+		v_angle[0] = std::clamp(v_angle[0], -89.0f, 89.0f);
+  
 		// Set up view angles.
 		pmove->angles[ROLL] = PM_CalcRoll(v_angle, pmove->velocity, pmove->movevars->rollangle, pmove->movevars->rollspeed) * 4;
 		pmove->angles[PITCH] = v_angle[PITCH];
