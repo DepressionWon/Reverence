@@ -30,6 +30,13 @@
 #include "demo_api.h"
 #include "vgui_ScorePanel.h"
 
+// STENCIL SHADOWS BEGIN
+#include "lightlist.h"
+#include "svd_render.h"
+#include "svdformat.h"
+#include "svd_render.h"
+// STENCIL SHADOWS END
+
 hud_player_info_t g_PlayerInfoList[MAX_PLAYERS_HUD + 1];	// player info from the engine
 extra_player_info_t g_PlayerExtraInfo[MAX_PLAYERS_HUD + 1]; // additional player info sent directly to the client dll
 
@@ -385,6 +392,10 @@ void CHud::Init()
 
 	MsgFunc_ResetHUD(0, 0, NULL);
 
+	// STENCIL SHADOWS BEGIN
+	gLightList.Init();
+	// STENCIL SHADOWS END
+
 #ifdef STEAM_RICH_PRESENCE
 	gEngfuncs.pfnClientCmd("richpresence_gamemode\n"); // reset
 	gEngfuncs.pfnClientCmd("richpresence_update\n");
@@ -410,6 +421,10 @@ CHud::~CHud()
 		}
 		m_pHudList = NULL;
 	}
+
+	// STENCIL SHADOWS BEGIN
+	SVD_Shutdown();
+	// STENCIL SHADOWS END
 }
 
 // GetSpriteIndex()
@@ -441,7 +456,10 @@ void CHud::VidInit()
 	m_hsprLogo = 0;
 	m_hsprCursor = 0;
 
-	m_iRes = 640; // Always use 640 res HUD sprites
+	if (ScreenWidth < 640)
+		m_iRes = 320;
+	else
+		m_iRes = 640;
 
 	// Only load this once
 	if (!m_pSpriteList)
@@ -528,6 +546,11 @@ void CHud::VidInit()
 	m_TextMessage.VidInit();
 	m_StatusIcons.VidInit();
 	GetClientVoiceMgr()->VidInit();
+
+	// STENCIL SHADOWS BEGIN
+	gLightList.VidInit();
+	SVD_VidInit();
+	// STENCIL SHADOWS END
 }
 
 bool CHud::MsgFunc_Logo(const char* pszName, int iSize, void* pbuf)

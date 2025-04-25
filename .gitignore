@@ -7,3 +7,7 @@
 /cl_dll/filesystem.cpp
 /cl_dll/particlemanager.cpp
 /cl_dll/particlemanager.h
+/cl_dll/elightlist.cpp
+/cl_dll/elight.h
+/cl_dll/elightlist.h
+/cl_dll/elightlist.cpp

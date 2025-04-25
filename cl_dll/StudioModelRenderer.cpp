@@ -24,8 +24,7 @@
 
  #include "Exports.h"
  #include "PlatformHeaders.h"
- #include <SDL2/SDL_opengl.h>
-#include <algorithm>
+ #include <algorithm>
  #include <cmath>
 
 #include "pmtrace.h"
@@ -44,6 +43,9 @@
 static GLuint g_iBlankTex = 0;
 
 // FULLBRIGHT END
+
+#include "SDL2/SDL.h"
+#include "lightlist.h"
 
 extern cvar_t* tfc_newmodels;
 
@@ -92,6 +94,19 @@ void CStudioModelRenderer::Init()
 	m_plighttransform = (float(*)[MAXSTUDIOBONES][3][4])IEngineStudio.StudioGetLightTransform();
 	m_paliastransform = (float(*)[3][4])IEngineStudio.StudioGetAliasTransform();
 	m_protationmatrix = (float(*)[3][4])IEngineStudio.StudioGetRotationMatrix();
+
+	// STENCIL SHADOWS BEGIN
+	m_pSkylightDirX = IEngineStudio.GetCvar("sv_skyvec_x");
+	m_pSkylightDirY = IEngineStudio.GetCvar("sv_skyvec_y");
+	m_pSkylightDirZ = IEngineStudio.GetCvar("sv_skyvec_z");
+
+	m_pSkylightColorR = IEngineStudio.GetCvar("sv_skycolor_r");
+	m_pSkylightColorG = IEngineStudio.GetCvar("sv_skycolor_g");
+	m_pSkylightColorB = IEngineStudio.GetCvar("sv_skycolor_b");
+
+	m_pCvarDrawStencilShadows = CVAR_CREATE("r_shadows_stencil", "1", FCVAR_ARCHIVE);
+	m_pCvarShadowVolumeExtrudeDistance = CVAR_CREATE("r_shadow_extrude_distance", "2048", FCVAR_ARCHIVE);
+	// STENCIL SHADOWS END
 }
 
 /*
@@ -120,6 +135,33 @@ CStudioModelRenderer::CStudioModelRenderer()
 	m_pSubModel = NULL;
 	m_pPlayerInfo = NULL;
 	m_pRenderModel = NULL;
+
+	// STENCIL SHADOWS BEGIN
+	m_pCvarDrawStencilShadows = NULL;
+	m_pCvarShadowVolumeExtrudeDistance = NULL;
+	m_iClosestLight = 0;
+	m_iNumEntityLights = 0;
+	m_pSkylightColorR = NULL;
+	m_pSkylightColorG = NULL;
+	m_pSkylightColorB = NULL;
+	m_pSkylightDirX = NULL;
+	m_pSkylightDirY = NULL;
+	m_pSkylightDirZ = NULL;
+	m_pSVDSubModel = NULL;
+	m_pSVDHeader = NULL;
+	m_shadowLightType = SL_TYPE_LIGHTVECTOR;
+
+	memset(m_pEntityLights, 0, sizeof(m_pEntityLights));
+
+	glActiveTexture = (PFNGLACTIVETEXTUREPROC)SDL_GL_GetProcAddress("glActiveTexture");
+	glClientActiveTexture = (PFNGLCLIENTACTIVETEXTUREPROC)SDL_GL_GetProcAddress("glClientActiveTexture");
+	glActiveStencilFaceEXT = (PFNGLACTIVESTENCILFACEEXTPROC)SDL_GL_GetProcAddress("glActiveStencilFaceEXT");
+
+	if (glActiveStencilFaceEXT)
+		m_bTwoSideSupported = true;
+	else
+		m_bTwoSideSupported = false;
+	// STENCIL SHADOWS END
 }
 
 /*
@@ -1193,11 +1235,14 @@ bool CStudioModelRenderer::StudioDrawModel(int flags)
 	m_pStudioHeader = (studiohdr_t*)IEngineStudio.Mod_Extradata(m_pRenderModel);
 	IEngineStudio.StudioSetHeader(m_pStudioHeader);
 	IEngineStudio.SetRenderModel(m_pRenderModel);
+	StudioSetupTextureHeader();
 
 	StudioSetUpTransform(false);
 
 	if ((flags & STUDIO_RENDER) != 0)
 	{
+		StudioGetMinsMaxs(m_vMins, m_vMaxs);
+
 		// see if the bounding box lets us trivially reject, also sets
 		if (0 == IEngineStudio.StudioCheckBBox())
 			return false;
@@ -1236,8 +1281,12 @@ bool CStudioModelRenderer::StudioDrawModel(int flags)
 	{
 		lighting.plightvec = dir;
 		IEngineStudio.StudioDynamicLight(m_pCurrentEntity, &lighting);
+		// STENCIL SHADOWS BEGIN
+		StudioEntityLight();
+		// STENCIL SHADOWS END
 
 		IEngineStudio.StudioEntityLight(&lighting);
+		StudioEntityLight();
 
 		// model and frame independant
 		IEngineStudio.StudioSetupLighting(&lighting);
@@ -1318,6 +1367,48 @@ bool CStudioModelRenderer::StudioDrawModel(int flags)
 	}
 
 	return true;
+}
+
+/*
+====================
+UpdateAttachments
+
+====================
+*/
+void CStudioModelRenderer::UpdateAttachments(cl_entity_t* pEntity)
+{
+	IEngineStudio.GetTimes(&m_nFrameCount, &m_clTime, &m_clOldTime);
+	IEngineStudio.GetViewInfo(m_vRenderOrigin, m_vUp, m_vRight, m_vNormal);
+	IEngineStudio.GetAliasScale(&m_fSoftwareXScale, &m_fSoftwareYScale);
+
+	m_pCurrentEntity = pEntity;
+	m_pRenderModel = m_pCurrentEntity->model;
+	m_pStudioHeader = (studiohdr_t*)IEngineStudio.Mod_Extradata(m_pRenderModel);
+	IEngineStudio.StudioSetHeader(m_pStudioHeader);
+	IEngineStudio.SetRenderModel(m_pRenderModel);
+	StudioSetupTextureHeader();
+
+	StudioSetUpTransform(0);
+
+	if (m_pCurrentEntity->curstate.movetype == MOVETYPE_FOLLOW)
+	{
+		StudioMergeBones(m_pRenderModel);
+	}
+	else
+	{
+		StudioSetupBones();
+	}
+	StudioSaveBones();
+
+	StudioCalcAttachments();
+
+	// copy attachments into global entity array
+	if (m_pCurrentEntity->index > 0)
+	{
+		cl_entity_t* ent = gEngfuncs.GetEntityByIndex(m_pCurrentEntity->index);
+
+		memcpy(ent->attachment, m_pCurrentEntity->attachment, sizeof(Vector) * 4);
+	}
 }
 
 /*
@@ -1542,6 +1633,7 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 	m_pStudioHeader = (studiohdr_t*)IEngineStudio.Mod_Extradata(m_pRenderModel);
 	IEngineStudio.StudioSetHeader(m_pStudioHeader);
 	IEngineStudio.SetRenderModel(m_pRenderModel);
+	StudioSetupTextureHeader();
 
 	if (bPlayerBody)
 	{
@@ -1588,6 +1680,8 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 
 	if ((flags & STUDIO_RENDER) != 0)
 	{
+		StudioGetMinsMaxs(m_vMins, m_vMaxs);
+
 		// see if the bounding box lets us trivially reject, also sets
 		if (0 == IEngineStudio.StudioCheckBBox())
 			return false;
@@ -1632,6 +1726,10 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 			m_pCurrentEntity->curstate.body = 255;
 		}
 
+		// STENCIL SHADOWS BEGIN
+		StudioEntityLight();
+		// STENCIL SHADOWS END
+ 
 		if (!(m_pCvarDeveloper->value == 0 && gEngfuncs.GetMaxClients() == 1) && (m_pRenderModel == m_pCurrentEntity->model))
 		{
 			m_pCurrentEntity->curstate.body = 1; // force helmet
@@ -1641,6 +1739,7 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 		IEngineStudio.StudioDynamicLight(m_pCurrentEntity, &lighting);
 
 		IEngineStudio.StudioEntityLight(&lighting);
+		StudioEntityLight();
 
 		// model and frame independant
 		IEngineStudio.StudioSetupLighting(&lighting);
@@ -1683,20 +1782,30 @@ bool CStudioModelRenderer::StudioDrawPlayer(int flags, entity_state_t* pplayer)
 			cl_entity_t saveent = *m_pCurrentEntity;
 
 			model_t* pweaponmodel = IEngineStudio.GetModelByIndex(pplayer->weaponmodel);
+			// STENCIL SHADOWS BEGIN
+			model_t* psavedrendermodel = m_pRenderModel;
+			m_pRenderModel = pweaponmodel;
+			// STENCIL SHADOWS END
 
 			m_pStudioHeader = (studiohdr_t*)IEngineStudio.Mod_Extradata(pweaponmodel);
 			IEngineStudio.StudioSetHeader(m_pStudioHeader);
+			StudioSetupTextureHeader();
 
 
 			StudioMergeBones(pweaponmodel);
 
 			IEngineStudio.StudioSetupLighting(&lighting);
+			StudioSetLightVectors();
+			StudioSetChromeVectors();
 
 			StudioRenderModel();
 
 			StudioCalcAttachments();
 
 			*m_pCurrentEntity = saveent;
+			// STENCIL SHADOWS BEGIN
+			m_pRenderModel = psavedrendermodel;
+			// STENCIL SHADOWS END
 		}
 	}
 
@@ -1739,6 +1848,10 @@ void CStudioModelRenderer::StudioRenderModel()
 	IEngineStudio.SetChromeOrigin();
 	IEngineStudio.SetForceFaceFlags(0);
 
+	// STENCIL SHADOWS BEGIN
+	StudioSetupShadows();
+	// STENCIL SHADOWS END
+ 
 	if (m_pCurrentEntity->curstate.renderfx == kRenderFxGlowShell)
 	{
 		m_pCurrentEntity->curstate.renderfx = kRenderFxNone;
@@ -1791,8 +1904,8 @@ void CStudioModelRenderer::StudioRenderFinal_Software()
 	{
 		for (i = 0; i < m_pStudioHeader->numbodyparts; i++)
 		{
-			IEngineStudio.StudioSetupModel(i, (void**)&m_pBodyPart, (void**)&m_pSubModel);
-			IEngineStudio.StudioDrawPoints();
+			StudioSetupModel(i);
+			StudioDrawPoints();
 		}
 	}
 
@@ -1825,6 +1938,15 @@ void CStudioModelRenderer::StudioRenderFinal_Hardware()
 	rendermode = 0 != IEngineStudio.GetForceFaceFlags() ? kRenderTransAdd : m_pCurrentEntity->curstate.rendermode;
 	IEngineStudio.SetupRenderer(rendermode);
 
+	// STENCIL SHADOWS BEGIN
+	if (StudioShouldDrawShadow())
+	{
+		StudioDrawShadow();
+	}
+	// STENCIL SHADOWS END
+ 
+	StudioSetupRenderer(rendermode);
+
 	if (m_pCvarDrawEntities->value == 2)
 	{
 		IEngineStudio.StudioDrawBones();
@@ -1837,7 +1959,7 @@ void CStudioModelRenderer::StudioRenderFinal_Hardware()
 	{
 		for (i = 0; i < m_pStudioHeader->numbodyparts; i++)
 		{
-			IEngineStudio.StudioSetupModel(i, (void**)&m_pBodyPart, (void**)&m_pSubModel);
+			StudioSetupModel(i);
 
 			if (m_fDoInterp)
 			{
@@ -1846,7 +1968,7 @@ void CStudioModelRenderer::StudioRenderFinal_Hardware()
 			}
 
 			IEngineStudio.GL_SetRenderMode(rendermode);
-			IEngineStudio.StudioDrawPoints();
+			StudioDrawPoints();
 			IEngineStudio.GL_StudioDrawShadow();
 		}
 	}
@@ -1877,20 +1999,6 @@ void CStudioModelRenderer::StudioRenderFinal()
 	{
 		StudioRenderFinal_Software();
 	}
-
-	StudioSpotShadow();
-}
-
-/*
-====================
-StudioSpotShadow
-
-====================
-*/
-void SetEntQueueForShadow(cl_entity_s* ent);
-void CStudioModelRenderer::StudioSpotShadow()
-{
-	SetEntQueueForShadow(m_pCurrentEntity);
 }
 
 
@@ -2061,3 +2169,650 @@ void CStudioModelRenderer::StudioCacheFullbrightNames()
 }
 
 // FULLBRIGHT END
+
+/*
+====================
+StudioSetupRenderer
+
+====================
+*/
+void CStudioModelRenderer::StudioSetupRenderer(int rendermode)
+{
+	glDisable(GL_BLEND);
+
+	// Set the rendering mode
+	gEngfuncs.pTriAPI->RenderMode(rendermode);
+
+	// Push texture state
+	glPushAttrib(GL_TEXTURE_BIT);
+
+	glActiveTexture(GL_TEXTURE1);
+	glDisable(GL_TEXTURE_2D);
+
+	glActiveTexture(GL_TEXTURE2);
+	glDisable(GL_TEXTURE_2D);
+
+	glActiveTexture(GL_TEXTURE3);
+	glDisable(GL_TEXTURE_2D);
+
+	// Set the active texture unit
+	glActiveTexture(GL_TEXTURE0);
+	glEnable(GL_TEXTURE_2D);
+
+	// Set up texture state
+	glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_ARB);
+	glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+	glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PRIMARY_COLOR_ARB);
+	glTexEnvi(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);
+
+	// set smoothing
+	glShadeModel(GL_SMOOTH);
+
+	glColor4f(GL_ONE, GL_ONE, GL_ONE, GL_ONE);
+	glDepthFunc(GL_LEQUAL);
+
+	// Set this to 0 first
+	m_uiActiveTextureId = 0;
+}
+
+/*
+====================
+StudioSetupModel
+
+====================
+*/
+void CStudioModelRenderer::StudioSetupModel(int bodypart)
+{
+	if (bodypart > m_pStudioHeader->numbodyparts)
+		bodypart = 0;
+
+	m_pBodyPart = (mstudiobodyparts_t*)((byte*)m_pStudioHeader + m_pStudioHeader->bodypartindex) + bodypart;
+
+	int index = m_pCurrentEntity->curstate.body / m_pBodyPart->base;
+	index = index % m_pBodyPart->nummodels;
+
+	m_pSubModel = (mstudiomodel_t*)((byte*)m_pStudioHeader + m_pBodyPart->modelindex) + index;
+}
+
+/*
+====================
+StudioGetMinsMaxs
+
+====================
+*/
+void CStudioModelRenderer::StudioGetMinsMaxs(Vector& outMins, Vector& outMaxs)
+{
+	if (m_pCurrentEntity->curstate.sequence >= m_pStudioHeader->numseq)
+		m_pCurrentEntity->curstate.sequence = 0;
+
+	// Build full bounding box
+	mstudioseqdesc_t* pseqdesc = (mstudioseqdesc_t*)((byte*)m_pStudioHeader + m_pStudioHeader->seqindex) + m_pCurrentEntity->curstate.sequence;
+
+	Vector vTemp;
+	static Vector vBounds[8];
+
+	for (int i = 0; i < 8; i++)
+	{
+		if (i & 1)
+			vTemp[0] = pseqdesc->bbmin[0];
+		else
+			vTemp[0] = pseqdesc->bbmax[0];
+		if (i & 2)
+			vTemp[1] = pseqdesc->bbmin[1];
+		else
+			vTemp[1] = pseqdesc->bbmax[1];
+		if (i & 4)
+			vTemp[2] = pseqdesc->bbmin[2];
+		else
+			vTemp[2] = pseqdesc->bbmax[2];
+		VectorCopy(vTemp, vBounds[i]);
+	}
+
+	float rotationMatrix[3][4];
+	m_pCurrentEntity->angles[PITCH] = -m_pCurrentEntity->angles[PITCH];
+	AngleMatrix(m_pCurrentEntity->angles, rotationMatrix);
+	m_pCurrentEntity->angles[PITCH] = -m_pCurrentEntity->angles[PITCH];
+
+	for (int i = 0; i < 8; i++)
+	{
+		VectorCopy(vBounds[i], vTemp);
+		VectorRotate(vTemp, rotationMatrix, vBounds[i]);
+	}
+
+	// Set the bounding box
+	outMins = Vector(9999, 9999, 9999);
+	outMaxs = Vector(-9999, -9999, -9999);
+	for (int i = 0; i < 8; i++)
+	{
+		// Mins
+		if (vBounds[i][0] < outMins[0])
+			outMins[0] = vBounds[i][0];
+		if (vBounds[i][1] < outMins[1])
+			outMins[1] = vBounds[i][1];
+		if (vBounds[i][2] < outMins[2])
+			outMins[2] = vBounds[i][2];
+
+		// Maxs
+		if (vBounds[i][0] > outMaxs[0])
+			outMaxs[0] = vBounds[i][0];
+		if (vBounds[i][1] > outMaxs[1])
+			outMaxs[1] = vBounds[i][1];
+		if (vBounds[i][2] > outMaxs[2])
+			outMaxs[2] = vBounds[i][2];
+	}
+
+	VectorAdd(outMins, m_pCurrentEntity->origin, outMins);
+	VectorAdd(outMaxs, m_pCurrentEntity->origin, outMaxs);
+}
+
+/*
+====================
+StudioEntityLight
+
+====================
+*/
+void CStudioModelRenderer::StudioEntityLight(void)
+{
+	// Get elight list
+	gLightList.GetLightList(m_pCurrentEntity->origin, m_vMins, m_vMaxs, m_pEntityLights, &m_iNumEntityLights);
+
+	// Reset this anyway
+	m_iClosestLight = -1;
+
+	if (!m_iNumEntityLights)
+		return;
+
+	Vector transOrigin;
+	float flClosestDist = -1;
+
+	// Transform light origins to bone space
+	for (unsigned int i = 0; i < m_iNumEntityLights; i++)
+	{
+		elight_t* plight = m_pEntityLights[i];
+
+		if (!plight->temporary)
+		{
+			float flDist = (plight->origin - m_pCurrentEntity->origin).Length();
+			if (flClosestDist == -1 || flClosestDist > flDist)
+			{
+				flClosestDist = flDist;
+				m_iClosestLight = i;
+			}
+		}
+
+		for (int j = 0; j < m_pStudioHeader->numbones; j++)
+		{
+			transOrigin[0] = m_pEntityLights[i]->origin[0] - (*m_pbonetransform)[j][0][3];
+			transOrigin[1] = m_pEntityLights[i]->origin[1] - (*m_pbonetransform)[j][1][3];
+			transOrigin[2] = m_pEntityLights[i]->origin[2] - (*m_pbonetransform)[j][2][3];
+			VectorIRotate(transOrigin, (*m_pbonetransform)[j], m_lightLocalOrigins[i][j]);
+		}
+	}
+}
+
+/*
+====================
+StudioSetLightVectors
+
+====================
+*/
+void CStudioModelRenderer::StudioSetLightVectors(void)
+{
+	for (int j = 0; j < m_pStudioHeader->numbones; j++)
+		VectorIRotate(m_vLightDirection, (*m_pbonetransform)[j], m_lightVectors[j]);
+}
+
+/*
+====================
+StudioSetChromeVectors
+
+====================
+*/
+void CStudioModelRenderer::StudioSetChromeVectors(void)
+{
+	Vector tmp;
+	Vector chromeupvec;
+	Vector chromerightvec;
+
+	for (int i = 0; i < m_pStudioHeader->numbones; i++)
+	{
+		VectorScale(m_vRenderOrigin, -1, tmp);
+		tmp[0] += (*m_pbonetransform)[i][0][3];
+		tmp[1] += (*m_pbonetransform)[i][1][3];
+		tmp[2] += (*m_pbonetransform)[i][2][3];
+
+		VectorNormalizeFast(tmp);
+		CrossProduct(tmp, m_vRight, chromeupvec);
+		VectorNormalizeFast(chromeupvec);
+		CrossProduct(tmp, chromeupvec, chromerightvec);
+		VectorNormalizeFast(chromerightvec);
+
+		VectorIRotate(chromeupvec, (*m_pbonetransform)[i], m_chromeUp[i]);
+		VectorIRotate(chromerightvec, (*m_pbonetransform)[i], m_chromeRight[i]);
+	}
+}
+
+/*
+====================
+StudioLightsforVertex
+
+====================
+*/
+__forceinline void CStudioModelRenderer::StudioLightsforVertex(int index, byte boneindex, const Vector& origin)
+{
+	static unsigned int i;
+	static Vector dir;
+
+	static float radius;
+	static float dist;
+	static float attn;
+
+	static elight_t* plight;
+
+	for (i = 0; i < m_iNumEntityLights; i++)
+	{
+		plight = m_pEntityLights[i];
+
+		// Inverse square radius
+		radius = plight->radius * plight->radius;
+		VectorSubtract(m_lightLocalOrigins[i][boneindex], origin, dir);
+
+		dist = DotProduct(dir, dir);
+		attn = V_max((dist / radius - 1) * -1, 0);
+
+		m_lightStrengths[i][index] = attn;
+
+		VectorNormalizeFast(dir);
+		VectorCopy(dir, m_lightShadeVectors[i][index]);
+	}
+}
+
+/*
+====================
+StudioLightsforVertex
+
+====================
+*/
+__forceinline void CStudioModelRenderer::StudioLighting(float* lv, byte bone, int flags, const Vector& normal)
+{
+	static float illum;
+	static float lightcos;
+
+	illum = m_lightingInfo.ambientlight;
+
+	if (flags & STUDIO_NF_FLATSHADE)
+	{
+		illum += m_lightingInfo.shadelight * 0.8;
+	}
+	else
+	{
+		lightcos = DotProduct(normal, m_lightVectors[bone]); // -1 colinear, 1 opposite
+
+		if (lightcos > 1.0)
+			lightcos = 1;
+
+		illum += m_lightingInfo.shadelight;
+
+		lightcos = (lightcos + (m_pCvarLambert->value - 1.0)) / m_pCvarLambert->value; // do modified hemispherical lighting
+		if (lightcos > 0.0)
+			illum -= m_lightingInfo.shadelight * lightcos;
+
+		if (illum <= 0)
+			illum = 0;
+	}
+
+	if (illum > 255)
+		illum = 255;
+
+	*lv = illum / 255.0; // Light from 0 to 1.0
+}
+
+/*
+====================
+LightValueforVertex
+
+====================
+*/
+__forceinline void CStudioModelRenderer::LightValueforVertex(Vector& outColor, int vertindex, int normindex, const Vector& normal)
+{
+	static float fldot;
+	static unsigned int i;
+
+	static elight_t* plight;
+	outColor = m_lightValues[normindex];
+
+	if (m_iNumEntityLights)
+	{
+		for (i = 0; i < m_iNumEntityLights; i++)
+		{
+			plight = m_pEntityLights[i];
+
+			fldot = V_max(DotProduct(normal, m_lightShadeVectors[i][vertindex]), 0);
+			VectorMA(outColor, m_lightStrengths[i][vertindex] * fldot, plight->color, outColor);
+		}
+	}
+}
+
+/*
+====================
+StudioChrome
+
+====================
+*/
+__forceinline void CStudioModelRenderer::StudioChrome(int normIndex, int bone, const Vector& normal)
+{
+	// calc s coord
+	float n = DotProduct(normal, m_chromeRight[bone]);
+	m_chromeCoords[normIndex][0] = (n + 1.0) * 32; // FIX: make this a float
+
+	// calc t coord
+	n = DotProduct(normal, m_chromeUp[bone]);
+	m_chromeCoords[normIndex][1] = (n + 1.0) * 32; // FIX: make this a float
+}
+
+/*
+====================
+StudioDrawMesh
+
+====================
+*/
+void CStudioModelRenderer::StudioDrawMesh(mstudiomesh_t* pmesh, mstudiotexture_t* ptexture, float alpha)
+{
+	int i;
+	Vector color;
+
+	Vector* pstudioverts = (Vector*)((byte*)m_pStudioHeader + m_pSubModel->vertindex);
+	Vector* pstudionorms = (Vector*)((byte*)m_pStudioHeader + m_pSubModel->normindex);
+
+	short* ptricmds = (short*)((byte*)m_pStudioHeader + pmesh->triindex);
+
+	if (m_uiActiveTextureId != ptexture->index)
+	{
+		glBindTexture(GL_TEXTURE_2D, ptexture->index);
+		m_uiActiveTextureId = ptexture->index;
+	}
+
+	// Set to base and scale the texture matrix
+	glLoadIdentity();
+	glScalef(1.0 / (float)ptexture->width, 1.0 / (float)ptexture->height, 1.0);
+
+	if (ptexture->flags & STUDIO_NF_CHROME)
+	{
+		while (i = *(ptricmds++))
+		{
+			if (i < 0)
+			{
+				glBegin(GL_TRIANGLE_FAN);
+				i = -i;
+			}
+			else
+			{
+				glBegin(GL_TRIANGLE_STRIP);
+			}
+
+
+			for (; i > 0; i--, ptricmds += 4)
+			{
+				LightValueforVertex(color, ptricmds[0], ptricmds[1], pstudionorms[ptricmds[1]]);
+
+				glTexCoord2f(m_chromeCoords[ptricmds[1]][0], m_chromeCoords[ptricmds[1]][1]);
+				glColor4f(color[0], color[1], color[2], alpha);
+				glVertex3fv(m_vertexTransform[ptricmds[0]]);
+			}
+			glEnd();
+		}
+	}
+	else
+	{
+		while (i = *(ptricmds++))
+		{
+			if (i < 0)
+			{
+				glBegin(GL_TRIANGLE_FAN);
+				i = -i;
+			}
+			else
+			{
+				glBegin(GL_TRIANGLE_STRIP);
+			}
+
+			for (; i > 0; i--, ptricmds += 4)
+			{
+				LightValueforVertex(color, ptricmds[0], ptricmds[1], pstudionorms[ptricmds[1]]);
+
+				glTexCoord2i(ptricmds[2], ptricmds[3]);
+				glColor4f(color[0], color[1], color[2], alpha);
+				glVertex3fv(m_vertexTransform[ptricmds[0]]);
+			}
+			glEnd();
+		}
+	}
+}
+
+/*
+====================
+StudioDrawPoints
+
+====================
+*/
+void CStudioModelRenderer::StudioDrawPoints(void)
+{
+	float lightStrength;
+
+	float alpha;
+	if (m_pCurrentEntity->curstate.rendermode != kRenderNormal)
+		alpha = (float)m_pCurrentEntity->curstate.renderamt / 255.0f;
+	else
+		alpha = 1.0;
+
+	byte* pvertbone = ((byte*)m_pStudioHeader + m_pSubModel->vertinfoindex);
+	byte* pnormbone = ((byte*)m_pStudioHeader + m_pSubModel->norminfoindex);
+	mstudiotexture_t* ptextures = (mstudiotexture_t*)((byte*)m_pTextureHeader + m_pTextureHeader->textureindex);
+
+	mstudiomesh_t* pmeshes = (mstudiomesh_t*)((byte*)m_pStudioHeader + m_pSubModel->meshindex);
+
+	Vector* pstudioverts = (Vector*)((byte*)m_pStudioHeader + m_pSubModel->vertindex);
+	Vector* pstudionorms = (Vector*)((byte*)m_pStudioHeader + m_pSubModel->normindex);
+
+	int skinNum = m_pCurrentEntity->curstate.skin;
+	short* pskinref = (short*)((byte*)m_pTextureHeader + m_pTextureHeader->skinindex);
+	if (skinNum != 0 && skinNum < m_pTextureHeader->numskinfamilies)
+		pskinref += (skinNum * m_pTextureHeader->numskinref);
+
+	//
+	// Transform the vertices
+	//
+	for (int i = 0; i < m_pSubModel->numverts; i++)
+		VectorTransform(pstudioverts[i], (*m_pbonetransform)[pvertbone[i]], m_vertexTransform[i]);
+
+	//
+	// Calculate light values
+	//
+	for (int j = 0, normIndex = 0; j < m_pSubModel->nummesh; j++)
+	{
+		int flags = ptextures[pskinref[pmeshes[j].skinref]].flags;
+		for (int i = 0; i < pmeshes[j].numnorms; i++, normIndex++)
+		{
+			StudioLighting(&lightStrength, pnormbone[normIndex], flags, (float*)pstudionorms[normIndex]);
+			VectorScale(m_lightingInfo.color, lightStrength, m_lightValues[normIndex]);
+		}
+	}
+
+	//
+	// Calculate chrome for each vertex
+	//
+	int normIndex = 0;
+	for (int j = 0; j < m_pSubModel->nummesh; j++)
+	{
+		int flags = ptextures[pskinref[pmeshes[j].skinref]].flags;
+
+		// Skip non-chrome parts
+		if (!(flags & STUDIO_NF_CHROME))
+		{
+			normIndex += pmeshes[j].numnorms;
+			continue;
+		}
+
+		for (int i = 0; i < pmeshes[j].numnorms; i++, normIndex++)
+			StudioChrome(normIndex, pnormbone[normIndex], (float*)pstudionorms[normIndex]);
+	}
+
+	//
+	// Calculate light data for elights
+	//
+	if (m_iNumEntityLights > 0)
+	{
+		for (int i = 0; i < m_pSubModel->numverts; i++)
+			StudioLightsforVertex(i, pvertbone[i], pstudioverts[i]);
+	}
+
+	// Set matrix mode to texture here
+	glMatrixMode(GL_TEXTURE);
+
+	int flags;
+	for (int j = 0; j < m_pSubModel->nummesh; j++)
+	{
+		mstudiomesh_t* pmesh = &pmeshes[j];
+		mstudiotexture_t* ptexture = &ptextures[pskinref[pmesh->skinref]];
+
+		if (ptexture->flags & (STUDIO_NF_ADDITIVE | STUDIO_NF_ALPHABLEND))
+		{
+			flags |= ptexture->flags;
+			continue;
+		}
+
+		if (ptexture->flags & STUDIO_NF_ALPHATEST)
+		{
+			glEnable(GL_ALPHA_TEST);
+			glAlphaFunc(GL_GREATER, 0.5);
+		}
+
+		StudioDrawMesh(pmesh, ptexture, alpha);
+
+		if (ptexture->flags & STUDIO_NF_ALPHATEST)
+		{
+			glDisable(GL_ALPHA_TEST);
+			glAlphaFunc(GL_GREATER, 0);
+		}
+	}
+
+	if (flags & (STUDIO_NF_ADDITIVE | STUDIO_NF_ALPHABLEND))
+	{
+		glEnable(GL_BLEND);
+		glDepthMask(GL_FALSE);
+
+		// Draw additive last
+		for (int j = 0; j < m_pSubModel->nummesh; j++)
+		{
+			mstudiomesh_t* pmesh = &pmeshes[j];
+			mstudiotexture_t* ptexture = &ptextures[pskinref[pmesh->skinref]];
+
+			if (ptexture->flags & STUDIO_NF_ADDITIVE)
+			{
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+			}
+			else if (ptexture->flags & STUDIO_NF_ALPHABLEND)
+			{
+				if (m_pCurrentEntity->curstate.rendermode != kRenderNormal)
+					alpha = (m_pCurrentEntity->curstate.renderamt / 255.0f) * 0.25;
+				else
+					alpha = 0.25;
+
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			}
+			else
+				continue;
+
+			StudioDrawMesh(pmesh, ptexture, alpha);
+
+			// Reset this
+			if (m_pCurrentEntity->curstate.rendermode != kRenderNormal)
+				alpha = (float)m_pCurrentEntity->curstate.renderamt / 255.0f;
+			else
+				alpha = 1.0;
+		}
+
+		glDepthMask(GL_TRUE);
+		glDisable(GL_BLEND);
+	}
+
+	glMatrixMode(GL_TEXTURE);
+	glLoadIdentity();
+
+	glMatrixMode(GL_MODELVIEW);
+}
+
+/*
+====================
+SetupTextureHeader
+
+====================
+*/
+void CStudioModelRenderer::StudioSetupTextureHeader(void)
+{
+	if (m_pStudioHeader->numtextures && m_pStudioHeader->textureindex)
+	{
+		m_pTextureHeader = m_pStudioHeader;
+		return;
+	}
+
+	if (m_pRenderModel->lightdata)
+	{
+		m_pTextureHeader = (studiohdr_t*)((model_t*)m_pRenderModel->lightdata)->cache.data;
+		return;
+	}
+
+	char szName[64];
+	strcpy(szName, m_pRenderModel->name);
+	strcpy(&szName[(strlen(szName) - 4)], "T.mdl");
+
+	// Potential crash with Mod_ForName
+	model_t* pModel = IEngineStudio.Mod_ForName(szName, TRUE);
+	if (!pModel)
+		return;
+
+	m_pTextureHeader = (studiohdr_t*)pModel->cache.data;
+	m_pRenderModel->lightdata = (color24*)pModel;
+	pModel->clipnodes = (dclipnode_t*)m_pRenderModel;
+}
+
+/*
+====================
+StudioSetBuffer
+
+====================
+*/
+void CStudioModelRenderer::StudioSetBuffer(void)
+{
+	glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+
+	// Disable these to avoid slowdown bug
+	glDisableClientState(GL_NORMAL_ARRAY);
+	glDisableClientState(GL_COLOR_ARRAY);
+
+	glClientActiveTexture(GL_TEXTURE1);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glClientActiveTexture(GL_TEXTURE2);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glClientActiveTexture(GL_TEXTURE3);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glClientActiveTexture(GL_TEXTURE0);
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	glVertexPointer(3, GL_FLOAT, sizeof(Vector), m_vertexTransform);
+	glEnableClientState(GL_VERTEX_ARRAY);
+}
+
+/*
+====================
+StudioClearBuffer
+
+====================
+*/
+void CStudioModelRenderer::StudioClearBuffer(void)
+{
+	glDisableClientState(GL_VERTEX_ARRAY);
+
+	glPopClientAttrib();
+}

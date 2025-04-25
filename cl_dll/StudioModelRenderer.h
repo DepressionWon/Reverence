@@ -7,6 +7,22 @@
 
 #pragma once
 
+// STENCIL SHADOWS BEGIN
+#include "PlatformHeaders.h"
+#include "SDL2/SDL_opengl.h"
+
+#include "elight.h"
+#include "svdformat.h"
+
+enum shadow_lightype_t
+{
+	SL_TYPE_LIGHTVECTOR = 0,
+	SL_TYPE_POINTLIGHT
+};
+// STENCIL SHADOWS END
+
+typedef void(APIENTRY* PFNGLCLIENTACTIVETEXTUREPROC)(GLenum texture);
+
 #include <string>
 #include <iostream>
 #include <vector>
@@ -98,6 +114,55 @@ public:
 	// Process movement of player
 	virtual void StudioProcessGait(entity_state_t* pplayer);
 
+	// Sets up rendering
+	virtual void StudioSetupRenderer(int rendermode);
+
+	// Draws meshes for a model
+	virtual void StudioDrawPoints(void);
+
+	// Draw a single mesh
+	virtual void StudioDrawMesh(mstudiomesh_t* pmesh, mstudiotexture_t* ptexture, float alpha);
+
+	// Gets entity lights for a model
+	virtual void StudioEntityLight(void);
+
+	// Sets the ambient light vectors
+	virtual void StudioSetLightVectors(void);
+
+	// Sets the chrome vectors
+	virtual void StudioSetChromeVectors(void);
+
+	// Set the texture header
+	virtual void StudioSetupTextureHeader(void);
+
+	// Sets up bodypart pointers
+	virtual void StudioSetupModel(int bodypart);
+
+	// Sets bounding box
+	virtual void StudioGetMinsMaxs(Vector& outMins, Vector& outMaxs);
+
+	// Calculates elight info for a vertex
+	__forceinline void StudioLightsforVertex(int index, byte boneindex, const Vector& origin);
+
+	// Calculates lighting info for a vertex
+	__forceinline void StudioLighting(float* lv, byte bone, int flags, const Vector& normal);
+
+	// Calculates chrome for a normal
+	__forceinline void StudioChrome(int normindex, int bone, const Vector& normal);
+
+	// Calculates final light values for a vertex
+	__forceinline void LightValueforVertex(Vector& outColor, int vertindex, int normindex, const Vector& normal);
+
+	// Sets the buffer
+	virtual void StudioSetBuffer(void);
+
+	// Clears the buffer
+	virtual void StudioClearBuffer(void);
+
+	// Updates attachment positions on the entity
+	virtual void UpdateAttachments(cl_entity_t* pEntity);
+
+
 public:
 	// Client clock
 	double m_clTime;
@@ -138,6 +203,9 @@ public:
 
 	// Pointer to header block for studio model data
 	studiohdr_t* m_pStudioHeader;
+
+	// Pointer to header block for texture data
+	studiohdr_t* m_pTextureHeader;
 
 	// Pointers to current body part and submodel
 	mstudiobodyparts_t* m_pBodyPart;
@@ -184,6 +252,57 @@ public:
 	float (*m_pbonetransform)[MAXSTUDIOBONES][3][4];
 	float (*m_plighttransform)[MAXSTUDIOBONES][3][4];
 
+	// Array of transformed vertexes
+	Vector m_vertexTransform[MAXSTUDIOVERTS * 2];
+
+	// Array of calculated ambient light values
+	Vector m_lightValues[MAXSTUDIOVERTS];
+
+	// Height of the shadow to be rendered
+	float m_flShadowHeight;
+	Vector m_vShadowLightOrigin;
+
+	// Entity mins/maxs
+	Vector m_vMins;
+	Vector m_vMaxs;
+
+	// Array of lights
+	elight_t* m_pEntityLights[MAX_MODEL_ENTITY_LIGHTS];
+	unsigned int m_iNumEntityLights;
+
+	// Lighting information for vertexes
+	float m_lightStrengths[MAX_MODEL_ENTITY_LIGHTS][MAXSTUDIOVERTS];
+	Vector m_lightShadeVectors[MAX_MODEL_ENTITY_LIGHTS][MAXSTUDIOVERTS];
+
+	// Light origins in bone space
+	Vector m_lightLocalOrigins[MAX_MODEL_ENTITY_LIGHTS][MAXSTUDIOBONES];
+
+	// Ambient light vector for each bone
+	Vector m_lightVectors[MAXSTUDIOBONES];
+
+	// Ambient light direction
+	Vector m_vLightDirection;
+
+	// For chrome
+	float m_chromeCoords[MAXSTUDIOVERTS][2];
+	Vector m_chromeUp[MAXSTUDIOBONES];
+	Vector m_chromeRight[MAXSTUDIOBONES];
+
+	// Basic lighting info
+	alight_t m_lightingInfo;
+
+	// Closest entity light
+	int m_iClosestLight;
+
+	// Interpolated entity origin
+	Vector m_vEntityRenderOrigin;
+
+	// Lambertian factor cvar
+	cvar_t* m_pCvarLambert;
+
+	// Last texture that was bound to ogl
+	GLuint m_uiActiveTextureId;
+
 	// FULLBRIGHT START
 
 	bool StudioGetFullbright(model_s* pmodel);
@@ -196,6 +315,61 @@ public:
 
 	// FULLBRIGHT END
 
+	
+ public:
+	// STENCIL SHADOWS BEGIN
+	// Sets up bodypart pointers
+	virtual void StudioSetupModelSVD(int bodypart);
+
+	// Draws shadows for an entity
+	virtual void StudioDrawShadow(void);
+
+	// Draws a shadow volume
+	virtual void StudioDrawShadowVolume(void);
+
+	// Tells if we should draw a shadow for this ent
+	virtual bool StudioShouldDrawShadow(void);
+
+	// Sets up the shadow info
+	virtual void StudioSetupShadows(void);
+	// STENCIL SHADOWS END
+	// STENCIL SHADOWS BEGIN
 public:
-	void StudioSpotShadow();
+	// Pointer to the shadow volume data
+	svdheader_t* m_pSVDHeader;
+	// Pointer to shadow volume submodel data
+	svdsubmodel_t* m_pSVDSubModel;
+
+	// Tells if a face is facing the light
+	bool m_trianglesFacingLight[MAXSTUDIOTRIANGLES];
+	// Index array used for rendering
+	GLushort m_shadowVolumeIndexes[MAXSTUDIOTRIANGLES * 3];
+
+	cvar_t* m_pSkylightDirX;
+	cvar_t* m_pSkylightDirY;
+	cvar_t* m_pSkylightDirZ;
+
+	cvar_t* m_pSkylightColorR;
+	cvar_t* m_pSkylightColorG;
+	cvar_t* m_pSkylightColorB;
+
+	// Shadowing light vector
+	Vector m_vShadowLightVector;
+	// Type of shadow light source
+	shadow_lightype_t m_shadowLightType;
+
+	// Toggles rendering of stencil shadows
+	cvar_t* m_pCvarDrawStencilShadows;
+	// Extrusion length for stencil shadow volumes
+	cvar_t* m_pCvarShadowVolumeExtrudeDistance;
+	// Tells if two sided stencil test is supported
+	bool m_bTwoSideSupported;
+
+public:
+	// Opengl functions
+	PFNGLACTIVETEXTUREPROC glActiveTexture;
+	PFNGLCLIENTACTIVETEXTUREPROC glClientActiveTexture;
+	PFNGLACTIVESTENCILFACEEXTPROC glActiveStencilFaceEXT;
+	PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate;
+	// STENCIL SHADOWS END
 };

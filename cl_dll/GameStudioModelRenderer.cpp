@@ -27,6 +27,10 @@
 #include "GameStudioModelRenderer.h"
 #include "Exports.h"
 
+// STENCIL SHADOWS BEGIN
+#include "svd_render.h"
+// STENCIL SHADOWS END
+
 //
 // Override the StudioModelRender virtual member functions here to implement custom bone
 // setup, blending, etc.
@@ -115,6 +119,10 @@ int DLLEXPORT HUD_GetStudioModelInterface(int version, struct r_studio_interface
 	// Initialize local variables, etc.
 	R_StudioInit();
 
+	// STENCIL SHADOWS BEGIN
+	SVD_Init();
+	// STENCIL SHADOWS END
+ 
 	// Success
 	return 1;
 }

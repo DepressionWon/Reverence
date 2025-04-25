@@ -378,6 +378,11 @@ public:
 	int m_fInAttack;
 
 	int m_fireState;
+
+public:
+	// STENCIL SHADOWS BEGIN
+	virtual void SendInitMessages(CBaseEntity* pPlayer = NULL) {};
+	// STENCIL SHADOWS END
 };
 
 inline bool FNullEnt(CBaseEntity* ent) { return (ent == NULL) || FNullEnt(ent->edict()); }

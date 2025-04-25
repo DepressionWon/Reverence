@@ -67,4 +67,7 @@ void LinkUserMessages()
 	gmsgWeapons = REG_USER_MSG("Weapons", 8);
 	gmsgImpact = REG_USER_MSG("Impact", -1);
 
+	// STENCIL SHADOWS BEGIN
+	gmsgLightSource = REG_USER_MSG("LightSource", -1);
+	// STENCIL SHADOWS END
 }

@@ -356,6 +356,13 @@ public:
 
 	//True if the player is currently spawning.
 	bool m_bIsSpawning = false;
+
+public:
+	// STENCIL SHADOWS BEGIN
+	void InitializeEntities(void);
+
+	bool m_sentInitMessages;
+	// STENCIL SHADOWS END
 };
 
 inline void CBasePlayer::SetWeaponBit(int id)

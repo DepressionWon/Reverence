@@ -3046,6 +3046,10 @@ void CBasePlayer::Precache()
 
 	if (gInitHUD)
 		m_fInitHUD = true;
+
+	// STENCIL SHADOWS BEGIN
+	m_sentInitMessages = false;
+	// STENCIL SHADOWS END
 }
 
 
@@ -4359,10 +4363,40 @@ void CBasePlayer::UpdateClientData()
 		MESSAGE_END();
 	}
 
+	// STENCIL SHADOWS BEGIN
+	if (!m_sentInitMessages)
+	{
+		InitializeEntities();
+		m_sentInitMessages = true;
+	}
+	// STENCIL SHADOWS END
+ 
 	//Handled anything that needs resetting
 	m_bRestored = false;
 }
 
+// STENCIL SHADOWS BEGIN
+//=========================================================
+// InitializeEntities
+//=========================================================
+void CBasePlayer ::InitializeEntities(void)
+{
+	edict_t* pEdict = g_engfuncs.pfnPEntityOfEntIndex(1);
+	CBaseEntity* pEntity;
+
+	for (int i = 0; i < gpGlobals->maxEntities; i++, pEdict++)
+	{
+		if (pEdict->free)
+			continue;
+
+		pEntity = CBaseEntity::Instance(pEdict);
+		if (!pEntity)
+			break;
+
+		pEntity->SendInitMessages(this);
+	}
+}
+// STENCIL SHADOWS END
 
 //=========================================================
 // FBecomeProne - Overridden for the player to set the proper
