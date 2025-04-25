@@ -11,4 +11,6 @@ Features
 - Gunplay Additions
 - Visible Player Body
 - Fullbright Texture Support
+- Vertex Lighting
+- Light Reacting Shadows(Stencil 💔)
 - and so far, just QoL changes and Misc. additions
